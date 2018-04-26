@@ -6,9 +6,23 @@ php:
   - 7.1
   - 7.2
 
+install:
+  # Install coveralls.phar
+  - wget -c -nc --retry-connrefused --tries=0 https://github.com/php-coveralls/php-coveralls/releases/download/v2.0.0/php-coveralls.phar -O coveralls.phar
+  - chmod +x coveralls.phar
+  - php coveralls.phar --version
+
 before_script:
   - composer self-update || true
   - composer install
+  - mkdir -p build/logs
+
+script:
+  - ./vendor/bin/phpunit --coverage-clover build/logs/clover.xml
+
+after_success:
+# Submit coverage report to Coveralls servers, see .coveralls.yml
+ - travis_retry php coveralls.phar -v
 
 cache:
   directories:
