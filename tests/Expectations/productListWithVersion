@@ -1,0 +1,16 @@
+<html>
+    <h1>Available products</h1>
+
+    <ul class="row">
+        <li class="product">
+            <span>Product</span>
+            <span>Hammer</span>
+        </li>
+        <li class="product">
+            <span>Product</span>
+            <span>Wood</span>
+        </li>
+    </ul>
+
+    <div class="version">1.0.1</div>
+</html>

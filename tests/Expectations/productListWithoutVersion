@@ -1,0 +1,14 @@
+<html>
+    <h1>Available products</h1>
+
+    <ul class="row">
+        <li class="product">
+            <span>Product</span>
+            <span>Hammer</span>
+        </li>
+        <li class="product">
+            <span>Product</span>
+            <span>Nails</span>
+        </li>
+    </ul>
+</html>

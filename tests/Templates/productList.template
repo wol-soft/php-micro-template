@@ -1,0 +1,18 @@
+<html>
+    <h1>{{ pageTitle }}</h1>
+
+    <ul class="row">
+        {% foreach products as product %}
+            {% if product.isVisible() %}
+                <li class="product">
+                    <span>{{ productHead }}</span>
+                    <span>{{ product.getTitle() }}</span>
+                </li>
+            {% endif %}
+        {% endforeach %}
+    </ul>
+
+    {% if showVersion %}
+        <div class="version">1.0.1</div>
+    {% endif %}
+</html>
