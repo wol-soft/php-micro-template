@@ -1,5 +1,5 @@
 {
-    "name": "ewoortmann/php-micro-template",
+    "name": "wol-soft/php-micro-template",
     "homepage": "https://github.com/wol-soft/php-micro-template",
     "description": "A minimalistic templating engine for PHP",
     "type": "library",

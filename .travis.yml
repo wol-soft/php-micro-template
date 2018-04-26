@@ -1,0 +1,16 @@
+language: php
+
+sudo: false
+
+php:
+  - 7.1
+  - 7.2
+
+before_script:
+  - composer self-update || true
+  - composer install
+
+cache:
+  directories:
+    - vendor
+    - $COMPOSER_CACHE_DIR
