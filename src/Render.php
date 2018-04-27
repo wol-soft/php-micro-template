@@ -166,8 +166,8 @@ class Render
      */
     protected function getValue(array $matches, array $variables)
     {
-        $variable = $matches['variable'];
-        $method   = $matches['method'];
+        $variable = $matches['variable'] ?? null;
+        $method   = $matches['method'] ?? null;
 
         if (!isset($variables[$variable])) {
             echo "Unknown variable {$variable}";
