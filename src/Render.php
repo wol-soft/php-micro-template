@@ -65,7 +65,7 @@ class Render
         $template = preg_replace_callback(
             '/\{\{ ' . self::REGEX_VARIABLE . ' \}\}/i',
             function (array $matches) use ($variables): string {
-                return $this->getValue($matches, $variables);
+                return (string) $this->getValue($matches, $variables);
             },
             $template
         );
