@@ -3,6 +3,7 @@
 namespace PHPMicroTemplate\Tests;
 
 use PHPMicroTemplate\Exception\FileSystemException;
+use PHPMicroTemplate\Exception\UndefinedSymbolException;
 use PHPMicroTemplate\Render;
 use PHPMicroTemplate\Tests\Objects\Product;
 use PHPUnit\Framework\TestCase;
@@ -26,6 +27,18 @@ class RenderTest extends TestCase
     {
         $this->expectException(FileSystemException::class);
         $this->render->renderTemplate('nonExistingTemplate.template');
+    }
+
+    public function testUndefinedVariable()
+    {
+        $this->expectException(UndefinedSymbolException::class);
+        $this->render->renderTemplate('undefinedVariable.template', ['firstname' => 'John']);
+    }
+
+    public function testUndefinedMethod()
+    {
+        $this->expectException(UndefinedSymbolException::class);
+        $this->render->renderTemplate('undefinedVariable.template', ['product' => new Product('Wood', true)]);
     }
 
     public function testRenderTemplate(): void

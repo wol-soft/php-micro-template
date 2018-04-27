@@ -3,6 +3,7 @@
 namespace PHPMicroTemplate;
 
 use PHPMicroTemplate\Exception\FileSystemException;
+use PHPMicroTemplate\Exception\UndefinedSymbolException;
 
 /**
  * Class Render
@@ -35,6 +36,7 @@ class Render
      *
      * @return string
      * @throws FileSystemException
+     * @throws UndefinedSymbolException
      */
     public function renderTemplate(string $template, array $variables = []): string
     {
@@ -56,6 +58,7 @@ class Render
      * @param array  $variables The current variable scope
      *
      * @return string
+     * @throws UndefinedSymbolException
      */
     protected function replaceVariablesInTemplate(string $template, array $variables) : string
     {
@@ -77,6 +80,7 @@ class Render
      * @param array  $variables The current variable scope
      *
      * @return string
+     * @throws UndefinedSymbolException
      */
     private function resolveLoops($template, $variables): string
     {
@@ -111,6 +115,7 @@ class Render
      * @param array  $variables The current variable scope
      *
      * @return string
+     * @throws UndefinedSymbolException
      */
     protected function resolveConditionals(string $template, array $variables): string
     {
@@ -139,17 +144,19 @@ class Render
      */
     protected function getTemplate(string $template) : string
     {
-        if (!isset($this->templates[$template])) {
-            $file = $this->basePath . $template;
+        if (isset($this->templates[$template])) {
+            return $this->templates[$template];
+        }
 
-            if (file_exists($file)) {
-                $this->templates[$template] = file_get_contents($file);
-            }
+        $file = $this->basePath . $template;
 
-            if (!isset($this->templates[$template]) || !$this->templates[$template]) {
-                unset($this->templates[$template]);
-                throw new FileSystemException("Template $template not found");
-            }
+        if (file_exists($file)) {
+            $this->templates[$template] = file_get_contents($file);
+        }
+
+        if (!isset($this->templates[$template]) || !$this->templates[$template]) {
+            unset($this->templates[$template]);
+            throw new FileSystemException("Template $template not found");
         }
 
         return $this->templates[$template];
@@ -163,6 +170,7 @@ class Render
      * @param array $variables
      *
      * @return mixed
+     * @throws UndefinedSymbolException
      */
     protected function getValue(array $matches, array $variables)
     {
@@ -170,8 +178,7 @@ class Render
         $method   = $matches['method'] ?? null;
 
         if (!isset($variables[$variable])) {
-            echo "Unknown variable {$variable}";
-            return false;
+            throw new UndefinedSymbolException("Unknown variable {$variable}");
         }
 
         if (empty($method)) {
@@ -179,8 +186,7 @@ class Render
         }
 
         if (!is_callable([$variables[$variable], $method])) {
-            echo "Function {$method} on object {$variable} not callable";
-            return false;
+            throw new UndefinedSymbolException("Function {$method} on object {$variable} not callable");
         }
 
         return $variables[$variable]->{$method}();
