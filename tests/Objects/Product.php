@@ -13,17 +13,21 @@ class Product
     private $title;
     /** @var bool */
     private $isVisible;
+    /** @var array */
+    private $categories;
 
     /**
      * Product constructor.
      *
      * @param string $title
-     * @param bool $isVisible
+     * @param bool   $isVisible
+     * @param array  $categories
      */
-    public function __construct(string $title, bool $isVisible)
+    public function __construct(string $title, bool $isVisible, array $categories = [])
     {
         $this->title = $title;
         $this->isVisible = $isVisible;
+        $this->categories = $categories;
     }
 
     /**
@@ -40,5 +44,13 @@ class Product
     public function isVisible(): bool
     {
         return $this->isVisible;
+    }
+
+    /**
+     * @return array
+     */
+    public function getCategories(): array
+    {
+        return $this->categories;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace PHPMicroTemplate\Tests;
 
+use PHPMicroTemplate\Exception\FileSystemException;
 use PHPMicroTemplate\Render;
 use PHPMicroTemplate\Tests\Objects\Product;
 use PHPUnit\Framework\TestCase;
@@ -13,17 +14,29 @@ use PHPUnit\Framework\TestCase;
  */
 class RenderTest extends TestCase
 {
+    /** @var Render */
+    private $render;
+
+    public function setUp()
+    {
+        $this->render = new Render(__DIR__ . '/Templates/');
+    }
+
+    public function testRenderNotExistingTemplate()
+    {
+        $this->expectException(FileSystemException::class);
+        $this->render->renderTemplate('nonExistingTemplate.template');
+    }
+
     public function testRenderTemplate(): void
     {
-        $render = new Render(__DIR__ . '/Templates/');
-
         $products = [
             new Product('Hammer', true),
             new Product('Nails', false),
-            new Product('Wood', true),
+            new Product('Wood', true, ['Oak', 'Birch']),
         ];
 
-        $result = $render->renderTemplate(
+        $result = $this->render->renderTemplate(
             'productList.template',
             [
                 'pageTitle' => 'Available products',
@@ -41,7 +54,7 @@ class RenderTest extends TestCase
             new Product('Wood', false),
         ];
 
-        $result = $render->renderTemplate(
+        $result = $this->render->renderTemplate(
             'productList.template',
             [
                 'pageTitle' => 'Available products',

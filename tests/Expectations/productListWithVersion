@@ -9,6 +9,12 @@
         <li class="product">
             <span>Product</span>
             <span>Wood</span>
+
+            <p>Categories:</p>
+            <ul>
+                <li>Wood [Oak]</li>
+                <li>Wood [Birch]</li>
+            </ul>
         </li>
     </ul>
 

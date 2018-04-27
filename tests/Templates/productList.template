@@ -7,6 +7,14 @@
                 <li class="product">
                     <span>{{ productHead }}</span>
                     <span>{{ product.getTitle() }}</span>
+                    {% if product.getCategories() %}
+                        <p>Categories:</p>
+                        <ul>
+                        {% foreach product.getCategories() as category %}
+                            <li>{{ product.getTitle() }} [{{ category }}]</li>
+                        {% endforeach %}
+                        </ul>
+                    {% endif %}
                 </li>
             {% endif %}
         {% endforeach %}
