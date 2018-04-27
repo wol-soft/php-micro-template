@@ -38,7 +38,7 @@ class RenderTest extends TestCase
     public function testUndefinedMethod()
     {
         $this->expectException(UndefinedSymbolException::class);
-        $this->render->renderTemplate('undefinedVariable.template', ['product' => new Product('Wood', true)]);
+        $this->render->renderTemplate('undefinedMethod.template', ['product' => new Product('Wood', true)]);
     }
 
     public function testRenderTemplate(): void
