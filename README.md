@@ -14,6 +14,10 @@ A minimalistic, lightweight templating engine for PHP based on regular expressio
 - Conditional sections
 - Pass objects and call functions on the objects
 
+## Requirements ##
+
+- Requires at least PHP 7.1
+
 ## Installation ##
 
 The recommended way to install php-micro-template is through [Composer](http://getcomposer.org):
