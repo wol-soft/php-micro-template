@@ -3,6 +3,7 @@
 namespace PHPMicroTemplate\Tests;
 
 use PHPMicroTemplate\Exception\FileSystemException;
+use PHPMicroTemplate\Exception\SyntaxErrorException;
 use PHPMicroTemplate\Exception\UndefinedSymbolException;
 use PHPMicroTemplate\Render;
 use PHPMicroTemplate\Tests\Objects\Product;
@@ -41,6 +42,9 @@ class RenderTest extends TestCase
         $this->render->renderTemplate('undefinedMethod.template', ['product' => new Product('Wood', true)]);
     }
 
+    /**
+     * Check basic template rendering including variable replacement, nested loops and nested conditions
+     */
     public function testRenderTemplate(): void
     {
         $products = [
@@ -80,6 +84,9 @@ class RenderTest extends TestCase
         $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/productListWithoutVersion', $result);
     }
 
+    /**
+     * Test if the syntax of a template is whitespace tolerant
+     */
     public function testWhitespaceTolerance(): void
     {
         $products = [
@@ -99,5 +106,67 @@ class RenderTest extends TestCase
         );
 
         $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/productListWithVersion', $result);
+    }
+
+    /**
+     * Test if function parameters are resolved.
+     * Test nested function calls and multiple parameters for a single function
+     */
+    public function testFunctionParameter(): void
+    {
+        $products = [
+            new Product('Hammer', true),
+            new Product('Wood', true, ['Oak', 'Birch']),
+        ];
+
+        $result = $this->render->renderTemplate(
+            'parameters.template',
+            [
+                'viewHelper' => new ViewHelper(),
+                'products' => $products,
+                'productsNextPage' => 5
+            ]
+        );
+
+        $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/parameters', $result);
+    }
+
+    /**
+     * Test if invalid function parameters throw a SyntaxErrorException
+     *
+     * @dataProvider invalidFunctionParameterProvider
+     *
+     * @param string $template
+     */
+    public function testInvalidFunctionParameter(string $template): void
+    {
+        $this->expectException(SyntaxErrorException::class);
+        $this->render->renderTemplateString(
+            $template,
+            [
+                'viewHelper' => new ViewHelper(),
+                'variable' => 10,
+                'object' => new class () {
+                    public function get()
+                    {
+                        return 11;
+                    }
+                }
+            ]
+        );
+    }
+
+    public function invalidFunctionParameterProvider(): array
+    {
+        return [
+            ['{{ viewHelper.sum(,) }}'],
+            ['{{ viewHelper.sum(,) }}'],
+            ['{{ viewHelper.sum(variable,) }}'],
+            ['{{ viewHelper.sum(,variable) }}'],
+            ['{{ viewHelper.sum(object.get(),) }}'],
+            ['{{ viewHelper.sum(,object.get()) }}'],
+            ['{{ viewHelper.sum(variable,object.get(),) }}'],
+            ['{{ viewHelper.sum(variable object.get()) }}'],
+        ];
     }
 }

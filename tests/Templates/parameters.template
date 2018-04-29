@@ -1,0 +1,18 @@
+<html>
+    <p>Products on page: {{ viewHelper.count(products) }}</p>
+    <p>Total products: {{ viewHelper.sum(
+        viewHelper.count(products),
+        productsNextPage
+    ) }}</p>
+
+    <ul class="row">
+        {% foreach products as product %}
+            <li class="product">
+                <span>{{ product.getTitle() }}</span>
+                {% if viewHelper.isEmpty(product.getCategories()) %}
+                    <span>No product categories for {{ viewHelper.toBold(product.getTitle()) }}</span>
+                {% endif %}
+            </li>
+        {% endforeach %}
+    </ul>
+</html>

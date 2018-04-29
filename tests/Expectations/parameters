@@ -1,0 +1,14 @@
+<html>
+    <p>Products on page: 2</p>
+    <p>Total products: 7</p>
+
+    <ul class="row">
+        <li class="product">
+            <span>Hammer</span>
+            <span>No product categories for <b>Hammer</b></span>
+        </li>
+        <li class="product">
+            <span>Wood</span>
+        </li>
+    </ul>
+</html>

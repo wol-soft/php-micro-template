@@ -3,6 +3,7 @@
 namespace PHPMicroTemplate;
 
 use PHPMicroTemplate\Exception\FileSystemException;
+use PHPMicroTemplate\Exception\SyntaxErrorException;
 use PHPMicroTemplate\Exception\UndefinedSymbolException;
 
 /**
@@ -12,7 +13,7 @@ use PHPMicroTemplate\Exception\UndefinedSymbolException;
  */
 class Render
 {
-    private const REGEX_VARIABLE = '(?<variable>[a-z0-9]+)(\.((?<method>[a-z0-9]+)\(\)))?';
+    private const REGEX_VARIABLE = '(?<variable>[a-z0-9]+)(\.((?<method>[a-z0-9]+)\((?<parameter>[^{}%]*)\)))?';
 
     /** @var array */
     private $templates = [];
@@ -31,18 +32,34 @@ class Render
     }
 
     /**
-     * @param string $template
-     * @param array  $variables
+     * Render a template file
+     *
+     * @param string $template  The path to the template file
+     * @param array  $variables The variables assigned to the template
      *
      * @return string
      * @throws FileSystemException
      * @throws UndefinedSymbolException
+     * @throws SyntaxErrorException
      */
     public function renderTemplate(string $template, array $variables = []): string
     {
-        $output = $this->getTemplate($template);
+        return $this->renderTemplateString($this->getTemplate($template), $variables);
+    }
 
-        $output = $this->indexControlStructure($output, 'foreach');
+    /**
+     * Render a given template string
+     *
+     * @param string $template  The template string
+     * @param array  $variables The variables assigned to the template
+     *
+     * @return string
+     * @throws UndefinedSymbolException
+     * @throws SyntaxErrorException
+     */
+    public function renderTemplateString(string $template, array $variables = []): string
+    {
+        $output = $this->indexControlStructure($template, 'foreach');
         $output = $this->indexControlStructure($output, 'if');
 
         $output = $this->resolveLoops($output, $variables);
@@ -59,6 +76,7 @@ class Render
      *
      * @return string
      * @throws UndefinedSymbolException
+     * @throws SyntaxErrorException
      */
     protected function replaceVariablesInTemplate(string $template, array $variables) : string
     {
@@ -81,8 +99,9 @@ class Render
      *
      * @return string
      * @throws UndefinedSymbolException
+     * @throws SyntaxErrorException
      */
-    private function resolveLoops($template, $variables): string
+    protected function resolveLoops($template, $variables): string
     {
         return preg_replace_callback(
             '/\{%\s*foreach(?<index>-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+(?<scopeVar>[a-z0-9]+)\s*%\}' .
@@ -116,6 +135,7 @@ class Render
      *
      * @return string
      * @throws UndefinedSymbolException
+     * @throws SyntaxErrorException
      */
     protected function resolveConditionals(string $template, array $variables): string
     {
@@ -173,6 +193,7 @@ class Render
      *
      * @return mixed
      * @throws UndefinedSymbolException
+     * @throws SyntaxErrorException
      */
     protected function getValue(array $matches, array $variables)
     {
@@ -191,7 +212,12 @@ class Render
             throw new UndefinedSymbolException("Function {$method} on object {$variable} not callable");
         }
 
-        return $variables[$variable]->{$method}();
+        // check if the function to call has a given parameter. In this case resolve the parameter
+        if (!empty($matches['parameter'])) {
+            $parameter = $this->extractParameter($matches['parameter'], $variables);
+        }
+
+        return call_user_func_array([$variables[$variable], $method], $parameter ?? []);
     }
 
     /**
@@ -215,5 +241,33 @@ class Render
             },
             $template
         );
+    }
+
+    /**
+     * Extract a parameter from a given string
+     *
+     * @param string $parameter The parameter string of a function
+     * @param array  $variables The current scope
+     *
+     * @return array
+     * @throws SyntaxErrorException
+     */
+    protected function extractParameter(string $parameter, array $variables): array
+    {
+        if (preg_match(
+                '/^\s*' . self::REGEX_VARIABLE . '(\s*,\s*(?<next>.+))?\s*$/is',
+                $parameter,
+                $matches
+            ) === 0
+        ) {
+            throw new SyntaxErrorException("Invalid parameter list $parameter");
+        }
+
+        return empty($matches['next'])
+            ? [$this->getValue($matches, $variables)]
+            : array_merge(
+                [$this->getValue($matches, $variables)],
+                $this->extractParameter($matches['next'], $variables)
+            );
     }
 }

@@ -98,7 +98,7 @@ All variables of the parent scope are available inside the loop as well as the c
 ### Conditional sections
 
 With the *if* statement you can create conditional sections. As a condition you can pass either a value which will be casted to bool or call a method on an object. In this case the return value of the function will be casted to bool.
-Neither multiple values in a single condition combined by operators nor calculations or similar additional functions are provided.
+Neither multiple values in a single condition combined by operators nor calculations or similar additional functions are provided. For advanced conditions compare the section *function calls* with a ViewHelper-Object.
 
 ```html
 {% if showProducts %}
@@ -109,3 +109,91 @@ Neither multiple values in a single condition combined by operators nor calculat
 ```
 
 Multiple if statements can be nested.
+
+### function calls
+
+The methods which are called on assigned objects can take parameters. Allowed parameters are variables taken out of the current scope or another function call on an object available in the current scope.
+As an example a ViewHelper-Object can be assigned to the render process and methods of the ViewHelper can be used in the template for advanced logic inside the template.
+
+```php
+<?php
+
+/* ... */
+
+class ViewHelper
+{
+    public function count(iterable $list)
+    {
+        return count($list);
+    }
+
+    public function sum(...$values)
+    {
+        return array_sum($values);
+    }
+
+    public function toBold($label)
+    {
+        return "<b>$label</b>";
+    }
+}
+
+/* ... */
+
+$render = new Render(__DIR__ . '/Templates/');
+
+$result = $render->renderTemplate(
+    'functionExample.template',
+    [
+        'viewHelper' => new ViewHelper(),
+        'currencyFormatter' => new CurrencyFormatter(),
+        'basePrice' => 3.00,
+        'products' => $products
+    ]
+);
+
+/* ... */
+
+```
+
+```html
+<html>
+    <p>Products: {{ viewHelper.count(products) }}
+    <ul class="row">
+        {% foreach products as product %}
+            <li class="product">
+                <span>{{ viewHelper.toBold(product.getTitle()) }}</span>
+                <span>Price: {{
+                    currencyFormatter.format(
+                        viewHelper.sum(
+                            product.getPrice(),
+                            basePrice
+                        )
+                    )
+                }}</span>
+            </li>
+        {% endforeach %}
+    </ul>
+</html>
+```
+
+### Whitespace tolerance
+
+The templating syntax is whitespace tolerant so a template like the one below would be perfectly fine:
+
+```html
+{%if
+    product.getCategories()
+%}
+    <p>Categories:</p>
+    <ul>
+    {%foreach
+         product.getCategories()
+            as
+         category
+    %}
+        <li>{{product.getTitle()} [{{   category   }}]</li>
+    {%endforeach%}
+    </ul>
+{%endif%}
+```
