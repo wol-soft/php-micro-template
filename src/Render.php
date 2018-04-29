@@ -63,7 +63,7 @@ class Render
     protected function replaceVariablesInTemplate(string $template, array $variables) : string
     {
         $template = preg_replace_callback(
-            '/\{\{ ' . self::REGEX_VARIABLE . ' \}\}/i',
+            '/\{\{\s*' . self::REGEX_VARIABLE . '\s*\}\}/i',
             function (array $matches) use ($variables): string {
                 return (string) $this->getValue($matches, $variables);
             },
@@ -85,9 +85,9 @@ class Render
     private function resolveLoops($template, $variables): string
     {
         return preg_replace_callback(
-            '/\{% foreach(?<index>-[\d]+-) ' . self::REGEX_VARIABLE . ' as (?<scopeVar>[a-z0-9]+) %\}' .
+            '/\{%\s*foreach(?<index>-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+(?<scopeVar>[a-z0-9]+)\s*%\}' .
                 '(?<body>.+)' .
-            '\{% endforeach\k<index> %\}/si',
+            '\{%\s*endforeach\k<index>\s*%\}/si',
             function (array $matches) use ($variables): string {
                 $output = '';
 
@@ -121,7 +121,9 @@ class Render
     {
         do {
             $template = preg_replace_callback(
-                '/\{% if(?<index>-[\d]+-) ' . self::REGEX_VARIABLE . ' %\}(?<body>.+)\{% endif\k<index> %\}/si',
+                '/\{%\s*if(?<index>-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s*%\}' .
+                    '(?<body>.+)' .
+                '\{%\s*endif\k<index>\s*%\}/si',
                 function (array $matches) use ($variables): string {
                     return $this->getValue($matches, $variables) ? $matches['body'] : '';
                 },
@@ -205,7 +207,7 @@ class Render
     {
         $structureCounter = 0;
         return preg_replace_callback(
-            "/\{% (?<structure>(end)?$structure)/i",
+            "/\{%\s*(?<structure>(end)?$structure)/i",
             function (array $matches) use (&$structureCounter): string {
                 return $matches[0] . '-' .
                     (strpos($matches['structure'], 'end') === 0 ? --$structureCounter : $structureCounter++) .

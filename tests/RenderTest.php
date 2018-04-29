@@ -79,4 +79,25 @@ class RenderTest extends TestCase
 
         $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/productListWithoutVersion', $result);
     }
+
+    public function testWhitespaceTolerance(): void
+    {
+        $products = [
+            new Product('Hammer', true),
+            new Product('Nails', false),
+            new Product('Wood', true, ['Oak', 'Birch']),
+        ];
+
+        $result = $this->render->renderTemplate(
+            'productListWhitespaceTolerance.template',
+            [
+                'pageTitle' => 'Available products',
+                'productHead' => 'Product',
+                'products' => $products,
+                'showVersion' => true
+            ]
+        );
+
+        $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/productListWithVersion', $result);
+    }
 }
