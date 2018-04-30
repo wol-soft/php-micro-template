@@ -5,10 +5,13 @@
         <li class="product">
             <span>Product</span>
             <span>Hammer</span>
+            <span>No categories available</span>
         </li>
         <li class="product">
             <span>Product</span>
             <span>Nails</span>
+            <span>No categories available</span>
         </li>
+        <li>Product Wood not available</li>
     </ul>
 </html>

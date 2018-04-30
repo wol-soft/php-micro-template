@@ -20,8 +20,12 @@
                             <li>{{   product.getTitle()}} [{{   category     }}]</li>
                         {%endforeach%}
                         </ul>
+                    {%else%}
+                        <span>No categories available</span>
                     {%  endif   %}
                 </li>
+            {%      else    %}
+                <li>Product {{ product.getTitle() }} not available</li>
             {%endif%}
         {%   endforeach     %}
     </ul>

@@ -60,7 +60,7 @@ class Render
     public function renderTemplateString(string $template, array $variables = []): string
     {
         $output = $this->indexControlStructure($template, 'foreach');
-        $output = $this->indexControlStructure($output, 'if');
+        $output = $this->indexControlStructure($output, 'if', ['else']);
 
         $output = $this->resolveLoops($output, $variables);
         $output = $this->resolveConditionals($output, $variables);
@@ -145,7 +145,13 @@ class Render
                     '(?<body>.+)' .
                 '\{%\s*endif\k<index>\s*%\}/si',
                 function (array $matches) use ($variables): string {
-                    return $this->getValue($matches, $variables) ? $matches['body'] : '';
+                    $conditionalBody = preg_split("/{%\s*else{$matches['index']}\s*%\}/si", $matches['body']);
+
+                    if ($this->getValue($matches, $variables)) {
+                        return $conditionalBody[0];
+                    }
+
+                    return $conditionalBody[1] ?? '';
                 },
                 $template,
                 -1,
@@ -224,17 +230,30 @@ class Render
      * Index a control structure in a given template section so a handling of nested control structures of the same
      * type can be offered
      *
-     * @param string $template  The template section
-     * @param string $structure The control structure (eg. 'foreach', 'if')
+     * @param string $template             The template section
+     * @param string $structure            The control structure (eg. 'foreach', 'if')
+     * @param array  $additionalComponents Holds additional components for the structure (eg. 'else')
      *
      * @return string
      */
-    protected function indexControlStructure(string $template, string $structure): string
-    {
+    protected function indexControlStructure(
+        string $template,
+        string $structure,
+        array $additionalComponents = []
+    ): string {
         $structureCounter = 0;
+        $structureRegex = "(end)?$structure";
+
+        if ($additionalComponents) {
+            $structureRegex = "($structureRegex|" . join('|', $additionalComponents) . ')';
+        }
+
         return preg_replace_callback(
-            "/\{%\s*(?<structure>(end)?$structure)/i",
-            function (array $matches) use (&$structureCounter): string {
+            "/\{%\s*(?<structure>$structureRegex)/i",
+            function (array $matches) use (&$structureCounter, $additionalComponents): string {
+                if (in_array($matches['structure'], $additionalComponents)) {
+                    return $matches[0] . '-' . ($structureCounter - 1) . '-';
+                }
                 return $matches[0] . '-' .
                     (strpos($matches['structure'], 'end') === 0 ? --$structureCounter : $structureCounter++) .
                     '-';
@@ -254,7 +273,8 @@ class Render
      */
     protected function extractParameter(string $parameter, array $variables): array
     {
-        if (preg_match(
+        if (
+            preg_match(
                 '/^\s*' . self::REGEX_VARIABLE . '(\s*,\s*(?<next>.+))?\s*$/is',
                 $parameter,
                 $matches

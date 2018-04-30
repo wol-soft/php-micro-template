@@ -5,7 +5,9 @@
         <li class="product">
             <span>Product</span>
             <span>Hammer</span>
+            <span>No categories available</span>
         </li>
+        <li>Product Nails not available</li>
         <li class="product">
             <span>Product</span>
             <span>Wood</span>

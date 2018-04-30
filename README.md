@@ -108,6 +108,8 @@ Neither multiple values in a single condition combined by operators nor calculat
 {% if showProducts %}
     {% if product.isVisible() %}
         <span>{{ product.getTitle() }}</span>
+    {% else %}
+        <span>Product {{ product.getTitle() }} currently not available</span>
     {% endif %}
 {% endif %}
 ```
