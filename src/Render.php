@@ -104,8 +104,8 @@ class Render
     protected function resolveLoops($template, $variables): string
     {
         return preg_replace_callback(
-            '/\{%\s*foreach(?<index>-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+(?<scopeVar>[a-z0-9]+)\s*%\}' .
-                '(?<body>.+)' .
+            '/\{%\s*foreach(?<index>-[\d]+-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+(?<scopeVar>[a-z0-9]+)\s*%\}' .
+            '(?<body>.+)' .
             '\{%\s*endforeach\k<index>\s*%\}/si',
             function (array $matches) use ($variables): string {
                 $output = '';
@@ -141,8 +141,8 @@ class Render
     {
         do {
             $template = preg_replace_callback(
-                '/\{%\s*if(?<index>-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s*%\}' .
-                    '(?<body>.+)' .
+                '/\{%\s*if(?<index>-[\d]+-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s*%\}' .
+                '(?<body>.+)' .
                 '\{%\s*endif\k<index>\s*%\}/si',
                 function (array $matches) use ($variables): string {
                     $conditionalBody = preg_split("/{%\s*else{$matches['index']}\s*%\}/si", $matches['body']);
@@ -241,7 +241,8 @@ class Render
         string $structure,
         array $additionalComponents = []
     ): string {
-        $structureCounter = 0;
+        $structureDepthCounter = 0;
+        $levelCounter = [];
         $structureRegex = "(end)?$structure";
 
         if ($additionalComponents) {
@@ -250,13 +251,28 @@ class Render
 
         return preg_replace_callback(
             "/\{%\s*(?<structure>$structureRegex)/i",
-            function (array $matches) use (&$structureCounter, $additionalComponents): string {
+            function (array $matches) use (&$structureDepthCounter, &$levelCounter, $additionalComponents): string {
                 if (in_array($matches['structure'], $additionalComponents)) {
-                    return $matches[0] . '-' . ($structureCounter - 1) . '-';
+                    return sprintf(
+                        '%s-%s-%s-',
+                        $matches[0],
+                        $levelCounter[$structureDepthCounter - 1],
+                        ($structureDepthCounter - 1)
+                    );
                 }
-                return $matches[0] . '-' .
-                    (strpos($matches['structure'], 'end') === 0 ? --$structureCounter : $structureCounter++) .
-                    '-';
+
+                if (!isset($levelCounter[$structureDepthCounter])) {
+                    $levelCounter[$structureDepthCounter] = 0;
+                }
+
+                $isEndTag = strpos($matches['structure'], 'end') === 0;
+                ($isEndTag) ? --$structureDepthCounter : $levelCounter[$structureDepthCounter]++;
+                return sprintf(
+                    '%s-%s-%s-',
+                    $matches[0],
+                    $levelCounter[$structureDepthCounter],
+                    ($isEndTag ? $structureDepthCounter : $structureDepthCounter++)
+                );
             },
             $template
         );
@@ -270,16 +286,17 @@ class Render
      *
      * @return array
      * @throws SyntaxErrorException
+     * @throws UndefinedSymbolException
      */
     protected function extractParameter(string $parameter, array $variables): array
     {
-        if (
-            preg_match(
-                '/^\s*' . self::REGEX_VARIABLE . '(\s*,\s*(?<next>.+))?\s*$/is',
-                $parameter,
-                $matches
-            ) === 0
-        ) {
+        $result = preg_match(
+            '/^\s*' . self::REGEX_VARIABLE . '(\s*,\s*(?<next>.+))?\s*$/is',
+            $parameter,
+            $matches
+        );
+
+        if ($result === 0) {
             throw new SyntaxErrorException("Invalid parameter list $parameter");
         }
 

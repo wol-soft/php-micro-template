@@ -1,0 +1,13 @@
+<html>
+    <ul class="row">
+        {% foreach products as product %}
+            <span>{{ product.getTitle() }}</span>
+        {% endforeach %}
+    </ul>
+
+    <ul class="row">
+        {% foreach products as product %}
+            <span>{{ product.getTitle() }}</span>
+        {% endforeach %}
+    </ul>
+</html>

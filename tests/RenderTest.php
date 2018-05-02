@@ -109,6 +109,22 @@ class RenderTest extends TestCase
     }
 
     /**
+     * Test multiple loops following each other
+     */
+    public function testMultipleLoops(): void
+    {
+        $products = [
+            new Product('Hammer', true),
+            new Product('Nails', true),
+            new Product('Wood', true),
+        ];
+
+        $result = $this->render->renderTemplate('multipleLoops.template', ['products' => $products]);
+
+        $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/multipleLoops', $result);
+    }
+
+    /**
      * Test if function parameters are resolved.
      * Test nested function calls and multiple parameters for a single function
      */
