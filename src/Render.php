@@ -248,20 +248,22 @@ class Render
         return preg_replace_callback(
             '/\{%\s*(?<structure>' . $this->getControlStructureRegEx($structure, $additionalComponents) . ')/i',
             function (array $matches) use (&$structureDepthCounter, &$levelCounter, $additionalComponents): string {
-                $index = sprintf('%s-%s-%s-', $matches[0]);
-
                 if (in_array($matches['structure'], $additionalComponents)) {
-                    return sprintf($index, $levelCounter[$structureDepthCounter - 1], ($structureDepthCounter - 1));
+                    return sprintf(
+                        '%s-%s-%s-',
+                        $matches[0],
+                        $levelCounter[$structureDepthCounter - 1],
+                        ($structureDepthCounter - 1)
+                    );
                 }
 
-                if (!isset($levelCounter[$structureDepthCounter])) {
-                    $levelCounter[$structureDepthCounter] = 0;
-                }
-
+                $levelCounter[$structureDepthCounter] = $levelCounter[$structureDepthCounter] ?? 0;
                 $isEndTag = strpos($matches['structure'], 'end') === 0;
                 ($isEndTag) ? --$structureDepthCounter : $levelCounter[$structureDepthCounter]++;
+
                 return sprintf(
-                    $index,
+                    '%s-%s-%s-',
+                    $matches[0],
                     $levelCounter[$structureDepthCounter],
                     ($isEndTag ? $structureDepthCounter : $structureDepthCounter++)
                 );
