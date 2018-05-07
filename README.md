@@ -114,7 +114,13 @@ Neither multiple values in a single condition combined by operators nor calculat
 {% endif %}
 ```
 
-Multiple if statements can be nested.
+Multiple if statements can be nested. To invert an if condition the keyword *not* can be used:
+
+```html
+{% if not product.isVisible() %}
+    <span>Product {{ product.getTitle() }} currently not available</span>
+{% endif %}
+```
 
 ### function calls
 

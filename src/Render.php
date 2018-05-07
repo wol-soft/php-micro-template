@@ -105,7 +105,7 @@ class Render
     {
         return preg_replace_callback(
             '/\{%\s*foreach(?<index>-[\d]+-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+(?<scopeVar>[a-z0-9]+)\s*%\}' .
-            '(?<body>.+)' .
+                '(?<body>.+)' .
             '\{%\s*endforeach\k<index>\s*%\}/si',
             function (array $matches) use ($variables): string {
                 $output = '';
@@ -141,13 +141,14 @@ class Render
     {
         do {
             $template = preg_replace_callback(
-                '/\{%\s*if(?<index>-[\d]+-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s*%\}' .
-                '(?<body>.+)' .
+                '/\{%\s*if(?<index>-[\d]+-[\d]+-)\s+(?<not>not\s+)?' . self::REGEX_VARIABLE . '\s*%\}' .
+                    '(?<body>.+)' .
                 '\{%\s*endif\k<index>\s*%\}/si',
                 function (array $matches) use ($variables): string {
                     $conditionalBody = preg_split("/{%\s*else{$matches['index']}\s*%\}/si", $matches['body']);
+                    $ifCondition = $this->getValue($matches, $variables);
 
-                    if ($this->getValue($matches, $variables)) {
+                    if (strlen($matches['not']) xor $ifCondition) {
                         return $conditionalBody[0];
                     }
 
@@ -232,7 +233,7 @@ class Render
      *
      * @param string $template             The template section
      * @param string $structure            The control structure (eg. 'foreach', 'if')
-     * @param array  $additionalComponents Holds additional components for the structure (eg. 'else')
+     * @param array  $additionalComponents [optional] Holds additional components for the structure (eg. 'else')
      *
      * @return string
      */
@@ -243,22 +244,14 @@ class Render
     ): string {
         $structureDepthCounter = 0;
         $levelCounter = [];
-        $structureRegex = "(end)?$structure";
-
-        if ($additionalComponents) {
-            $structureRegex = "($structureRegex|" . join('|', $additionalComponents) . ')';
-        }
 
         return preg_replace_callback(
-            "/\{%\s*(?<structure>$structureRegex)/i",
+            '/\{%\s*(?<structure>' . $this->getControlStructureRegEx($structure, $additionalComponents) . ')/i',
             function (array $matches) use (&$structureDepthCounter, &$levelCounter, $additionalComponents): string {
+                $index = sprintf('%s-%s-%s-', $matches[0]);
+
                 if (in_array($matches['structure'], $additionalComponents)) {
-                    return sprintf(
-                        '%s-%s-%s-',
-                        $matches[0],
-                        $levelCounter[$structureDepthCounter - 1],
-                        ($structureDepthCounter - 1)
-                    );
+                    return sprintf($index, $levelCounter[$structureDepthCounter - 1], ($structureDepthCounter - 1));
                 }
 
                 if (!isset($levelCounter[$structureDepthCounter])) {
@@ -268,14 +261,32 @@ class Render
                 $isEndTag = strpos($matches['structure'], 'end') === 0;
                 ($isEndTag) ? --$structureDepthCounter : $levelCounter[$structureDepthCounter]++;
                 return sprintf(
-                    '%s-%s-%s-',
-                    $matches[0],
+                    $index,
                     $levelCounter[$structureDepthCounter],
                     ($isEndTag ? $structureDepthCounter : $structureDepthCounter++)
                 );
             },
             $template
         );
+    }
+
+    /**
+     * Get the regular expression for finding control structures
+     *
+     * @param string $structure            The control structure (eg. 'foreach', 'if')
+     * @param array  $additionalComponents [optional] Holds additional components for the structure (eg. 'else')
+     *
+     * @return string
+     */
+    protected function getControlStructureRegEx(string $structure, array $additionalComponents): string
+    {
+        $structureRegex = "(end)?$structure";
+
+        if ($additionalComponents) {
+            $structureRegex = "($structureRegex|" . join('|', $additionalComponents) . ')';
+        }
+
+        return $structureRegex;
     }
 
     /**

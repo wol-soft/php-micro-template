@@ -14,4 +14,6 @@
         </li>
         <li>Product Wood not available</li>
     </ul>
+
+    <div class="no-version">Version hidden</div>
 </html>
