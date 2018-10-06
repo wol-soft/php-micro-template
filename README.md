@@ -27,7 +27,7 @@ $ composer require wol-soft/php-micro-template
 
 ## Examples ##
 
-First create your template file.
+First create your template file:
 
 ```html
 <html>
@@ -50,7 +50,7 @@ First create your template file.
 </html>
 ```
 
-Afterwards create a new instance of the Render class and render your template
+Afterwards create a new instance of the Render class and render your template:
 
 ```php
 <?php
@@ -62,10 +62,41 @@ $render = new Render(__DIR__ . '/Templates/');
 $result = $render->renderTemplate(
     'productList.template',
     [
-        'pageTitle' => 'Available products',
-        'productHead' => 'Product',
+        'pageTitle' => $translator->translate('availableProducts'),
+        'productHead' => $translator->translate('product'),
         'products' => $products,
         'showVersion' => true
+    ]
+);
+
+/* ... */
+```
+
+Instead of saving your templates into files you can also prepare a string which contains the template:
+
+```php
+<?php
+
+/* ... */
+
+$myPartialTemplate = '
+    {% foreach products as product %}
+        {% if product.isVisible() %}
+            <li class="product">
+                <span>{{ productHead }}</span>
+                <span>{{ product.getTitle() }}</span>
+            </li>
+        {% endif %}
+    {% endforeach %}
+';
+
+$render = new Render();
+
+$result = $render->renderTemplateString(
+    $myPartialTemplate,
+    [
+        'productHead' => $translator->translate('product'),
+        'products' => $products
     ]
 );
 
