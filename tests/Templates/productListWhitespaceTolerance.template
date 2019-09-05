@@ -33,4 +33,12 @@
     {%if showVersion%}
         <div class="version">1.0.1</div>
     {%  endif%}
+
+    {%
+        if
+        not
+     showVersion%}
+        <div class="no-version">Version hidden</div>
+    {%endif
+        %}
 </html>

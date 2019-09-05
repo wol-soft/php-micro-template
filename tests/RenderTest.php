@@ -91,8 +91,8 @@ class RenderTest extends TestCase
     {
         $products = [
             new Product('Hammer', true),
-            new Product('Nails', false),
-            new Product('Wood', true, ['Oak', 'Birch']),
+            new Product('Nails', true),
+            new Product('Wood', false),
         ];
 
         $result = $this->render->renderTemplate(
@@ -101,11 +101,12 @@ class RenderTest extends TestCase
                 'pageTitle' => 'Available products',
                 'productHead' => 'Product',
                 'products' => $products,
-                'showVersion' => true
+                // null must be handled as a falsely value
+                'showVersion' => null
             ]
         );
 
-        $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/productListWithVersion', $result);
+        $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/productListWithoutVersion', $result);
     }
 
     /**

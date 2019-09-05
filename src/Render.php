@@ -207,7 +207,7 @@ class Render
         $variable = $matches['variable'] ?? null;
         $method   = $matches['method'] ?? null;
 
-        if (!isset($variables[$variable])) {
+        if (!array_key_exists($variable, $variables)) {
             throw new UndefinedSymbolException("Unknown variable {$variable}");
         }
 
