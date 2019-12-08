@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace PHPMicroTemplate\Tests;
 
 use PHPMicroTemplate\Exception\FileSystemException;
@@ -19,24 +21,24 @@ class RenderTest extends TestCase
     /** @var Render */
     private $render;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->render = new Render(__DIR__ . '/Templates/');
     }
 
-    public function testRenderNotExistingTemplate()
+    public function testRenderNotExistingTemplate(): void
     {
         $this->expectException(FileSystemException::class);
         $this->render->renderTemplate('nonExistingTemplate.template');
     }
 
-    public function testUndefinedVariable()
+    public function testUndefinedVariable(): void
     {
         $this->expectException(UndefinedSymbolException::class);
         $this->render->renderTemplate('undefinedVariable.template', ['firstname' => 'John']);
     }
 
-    public function testUndefinedMethod()
+    public function testUndefinedMethod(): void
     {
         $this->expectException(UndefinedSymbolException::class);
         $this->render->renderTemplate('undefinedMethod.template', ['product' => new Product('Wood', true)]);

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace PHPMicroTemplate;
 
 use PHPMicroTemplate\Exception\FileSystemException;
@@ -101,7 +103,7 @@ class Render
      * @throws UndefinedSymbolException
      * @throws SyntaxErrorException
      */
-    protected function resolveLoops($template, $variables): string
+    protected function resolveLoops(string $template, array $variables): string
     {
         return preg_replace_callback(
             '/\{%\s*foreach(?<index>-[\d]+-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+(?<scopeVar>[a-z0-9]+)\s*%\}' .
