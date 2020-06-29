@@ -8,6 +8,10 @@ use PHPMicroTemplate\Exception\FileSystemException;
 use PHPMicroTemplate\Exception\SyntaxErrorException;
 use PHPMicroTemplate\Exception\UndefinedSymbolException;
 
+use function call_user_func_array;
+use function in_array;
+use function is_callable;
+
 /**
  * Class Render
  *
@@ -150,7 +154,7 @@ class Render
                     $conditionalBody = preg_split("/{%\s*else{$matches['index']}\s*%\}/si", $matches['body']);
                     $ifCondition = $this->getValue($matches, $variables);
 
-                    if (strlen($matches['not']) xor $ifCondition) {
+                    if (!empty($matches['not']) xor $ifCondition) {
                         return $conditionalBody[0];
                     }
 
@@ -209,7 +213,8 @@ class Render
         $variable = $matches['variable'] ?? null;
         $method   = $matches['method'] ?? null;
 
-        if (!array_key_exists($variable, $variables)) {
+        // first check via isset for faster lookup
+        if (!isset($variables[$variable]) && !array_key_exists($variable, $variables)) {
             throw new UndefinedSymbolException("Unknown variable {$variable}");
         }
 
