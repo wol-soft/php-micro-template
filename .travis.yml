@@ -1,13 +1,10 @@
 language: php
 
-sudo: false
-
 php:
   - 7.1
   - 7.2
   - 7.3
   - 7.4
-  - master
 
 install:
   # Install coveralls.phar
