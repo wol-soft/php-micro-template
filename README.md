@@ -130,6 +130,14 @@ All variables of the parent scope are available inside the loop as well as the c
 {% endforeach %}
 ```
 
+Loops support the usage of key value pairs:
+
+```html
+{% foreach products as bestSellerNumber, product %}
+    <b>Bestseller Nr. {{ bestSellerNumber }}:</b>{{ product.getTitle() }}<br/>
+{% endforeach %}
+```
+
 ### Conditional sections
 
 With the *if* statement you can create conditional sections. As a condition you can pass either a value which will be casted to bool or call a method on an object. In this case the return value of the function will be casted to bool.

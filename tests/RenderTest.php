@@ -87,6 +87,22 @@ class RenderTest extends TestCase
     }
 
     /**
+     * Check loop with key value pair
+     */
+    public function testRenderKeyValueLoopTemplate(): void
+    {
+        $products = [
+            'Best Hammer' => new Product('Hammer', true),
+            'Nailed It'   => new Product('Nails', false),
+            'Most Solid'  => new Product('Wood', true, ['Oak', 'Birch']),
+        ];
+
+        $result = $this->render->renderTemplate('keyValueLoop.template', ['products' => $products]);
+
+        $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/keyValueLoop', $result);
+    }
+
+    /**
      * Test if the syntax of a template is whitespace tolerant
      */
     public function testWhitespaceTolerance(): void

@@ -1,0 +1,8 @@
+<html>
+    <ul class="row">
+        {% foreach products as key, product %}
+            <p>{{ key }}</p>
+            <span>{{ product.getTitle() }}</span>
+        {% endforeach %}
+    </ul>
+</html>

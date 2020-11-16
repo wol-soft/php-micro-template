@@ -19,7 +19,7 @@ use function is_callable;
  */
 class Render
 {
-    private const REGEX_VARIABLE = '(?<variable>[a-z0-9]+)(\.((?<method>[a-z0-9]+)\((?<parameter>[^{}%]*)\)))?';
+    private const REGEX_VARIABLE = '(?<variable>\w+)(\.((?<method>\w+)\((?<parameter>[^{}%]*)\)))?';
 
     /** @var array */
     private $templates = [];
@@ -110,14 +110,18 @@ class Render
     protected function resolveLoops(string $template, array $variables): string
     {
         return preg_replace_callback(
-            '/\{%\s*foreach(?<index>-[\d]+-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+(?<scopeVar>[a-z0-9]+)\s*%\}' .
+            '/\{%\s*foreach(?<index>-[\d]+-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+((?<key>\w+)\s*,\s*)?(?<value>\w+)\s*%\}' .
                 '(?<body>.+)' .
             '\{%\s*endforeach\k<index>\s*%\}/si',
             function (array $matches) use ($variables): string {
                 $output = '';
 
-                foreach ($this->getValue($matches, $variables) as $value) {
-                    $scope = array_merge($variables, [$matches['scopeVar'] => $value]);
+                foreach ($this->getValue($matches, $variables) as $key => $value) {
+                    $scope = array_merge(
+                        $variables,
+                        [$matches['value'] => $value],
+                        $matches['key'] ? [$matches['key'] => $key] : []
+                    );
 
                     $output .= $this->replaceVariablesInTemplate(
                         $this->resolveConditionals(
