@@ -55,6 +55,8 @@ Afterwards create a new instance of the Render class and render your template:
 ```php
 <?php
 
+use PHPMicroTemplate\Render;
+
 /* ... */
 
 $render = new Render(__DIR__ . '/Templates/');
@@ -76,6 +78,8 @@ Instead of saving your templates into files you can also prepare a string which 
 
 ```php
 <?php
+
+use PHPMicroTemplate\Render;
 
 /* ... */
 
@@ -168,6 +172,8 @@ As an example a ViewHelper-Object can be assigned to the render process and meth
 
 ```php
 <?php
+
+use PHPMicroTemplate\Render;
 
 /* ... */
 
