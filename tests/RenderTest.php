@@ -29,18 +29,28 @@ class RenderTest extends TestCase
     public function testRenderNotExistingTemplate(): void
     {
         $this->expectException(FileSystemException::class);
+        $this->expectExceptionMessage('Template nonExistingTemplate.template not found');
         $this->render->renderTemplate('nonExistingTemplate.template');
     }
 
     public function testUndefinedVariable(): void
     {
         $this->expectException(UndefinedSymbolException::class);
+        $this->expectExceptionMessage('Unknown variable name');
         $this->render->renderTemplate('undefinedVariable.template', ['firstname' => 'John']);
+    }
+
+    public function testMethodOnNonObject(): void
+    {
+        $this->expectException(UndefinedSymbolException::class);
+        $this->expectExceptionMessage('Trying to call getPrice on non-object product');
+        $this->render->renderTemplate('undefinedMethod.template', ['product' => false]);
     }
 
     public function testUndefinedMethod(): void
     {
         $this->expectException(UndefinedSymbolException::class);
+        $this->expectExceptionMessage('Function getPrice on object product not callable');
         $this->render->renderTemplate('undefinedMethod.template', ['product' => new Product('Wood', true)]);
     }
 
@@ -203,5 +213,48 @@ class RenderTest extends TestCase
             ['{{ viewHelper.sum(variable,object.get(),) }}'],
             ['{{ viewHelper.sum(variable object.get()) }}'],
         ];
+    }
+
+    public function testNestedVariable(): void
+    {
+        $vars = [
+            'person' => [
+                'name' => [
+                    'firstName' => 'Hans',
+                    'lastName' => 'Schmidt',
+                ],
+            ],
+        ];
+
+        $this->assertSame(
+            'Schmidt, Hans',
+            $this->render->renderTemplateString('{{ person.name.lastName }}, {{ person.name.firstName }}', $vars)
+        );
+    }
+
+    public function testNestedMethod(): void
+    {
+        $vars = [
+            'person' => [
+                'name' => [
+                    'firstName' => 'Hans',
+                    'lastName' => 'Schmidt',
+                    'render' => new class () {
+                        public function renderName(string $firstName, string $lastName): string
+                        {
+                            return "$lastName, $firstName";
+                        }
+                    }
+                ],
+            ],
+        ];
+
+        $this->assertSame(
+            'Schmidt, Hans',
+            $this->render->renderTemplateString(
+                '{{ person.name.render.renderName(person.name.firstName, person.name.lastName) }}',
+                $vars
+            )
+        );
     }
 }

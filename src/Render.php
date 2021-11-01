@@ -19,7 +19,7 @@ use function is_callable;
  */
 class Render
 {
-    private const REGEX_VARIABLE = '(?<variable>\w+)(\.((?<method>\w+)\((?<parameter>[^{}%]*)\)))?';
+    private const REGEX_VARIABLE = '(?<variable>\w+)(?<nestedVariable>(\.\w+)*)(\.(?<method>\w+)\((?<parameter>[^{}%]*)\))?';
 
     /** @var array */
     private $templates = [];
@@ -214,20 +214,36 @@ class Render
      */
     protected function getValue(array $matches, array $variables)
     {
-        $variable = $matches['variable'] ?? null;
-        $method   = $matches['method'] ?? null;
+        $resolved     = $variables;
+        $variablePath = [$matches['variable']];
 
-        // first check via isset for faster lookup
-        if (!isset($variables[$variable]) && !array_key_exists($variable, $variables)) {
-            throw new UndefinedSymbolException("Unknown variable {$variable}");
+        if (!empty($matches['nestedVariable'])) {
+            array_push($variablePath, ...explode('.', trim($matches['nestedVariable'], '.')));
         }
 
-        if (empty($method)) {
-            return $variables[$variable];
+        foreach ($variablePath as $variable) {
+            // first check via isset for faster lookup
+            if (!isset($resolved[$variable]) && !array_key_exists($variable, $resolved)) {
+                throw new UndefinedSymbolException(sprintf('Unknown variable %s', implode('.', $variablePath)));
+            }
+
+            $resolved = $resolved[$variable];
         }
 
-        if (!is_callable([$variables[$variable], $method])) {
-            throw new UndefinedSymbolException("Function {$method} on object {$variable} not callable");
+        if (empty($matches['method'])) {
+            return $resolved;
+        }
+
+        if (!is_object($resolved)) {
+            throw new UndefinedSymbolException(
+                sprintf('Trying to call %s on non-object %s', $matches['method'], implode('.', $variablePath))
+            );
+        }
+
+        if (!is_callable([$resolved, $matches['method']])) {
+            throw new UndefinedSymbolException(
+                sprintf('Function %s on object %s not callable', $matches['method'], implode('.', $variablePath))
+            );
         }
 
         // check if the function to call has a given parameter. In this case resolve the parameter
@@ -235,7 +251,7 @@ class Render
             $parameter = $this->extractParameter($matches['parameter'], $variables);
         }
 
-        return call_user_func_array([$variables[$variable], $method], $parameter ?? []);
+        return call_user_func_array([$resolved, $matches['method']], $parameter ?? []);
     }
 
     /**
