@@ -257,4 +257,30 @@ class RenderTest extends TestCase
             )
         );
     }
+
+    /**
+     * @dataProvider resolveErrorDataProvider
+     *
+     * @param string $var
+     */
+    public function testResolveErrorCallback(string $var): void
+    {
+        $this->render->onResolveError(function (string $resolveError) use ($var): string {
+            $this->assertSame($var, $resolveError);
+
+            return 'callback-result';
+        });
+
+        $this->assertSame('callback-result', $this->render->renderTemplateString("{{ $var }}"));
+    }
+
+    public function resolveErrorDataProvider()
+    {
+        return [
+            'simple variable' => ['person'],
+            'nested variable' => ['person.name'],
+            'object function call' => ['person.renderName()'],
+            'object function call with parameters' => ['person.renderName(firstname, lastname)'],
+        ];
+    }
 }

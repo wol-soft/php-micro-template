@@ -19,12 +19,14 @@ use function is_callable;
  */
 class Render
 {
-    private const REGEX_VARIABLE = '(?<variable>\w+)(?<nestedVariable>(\.\w+)*)(\.(?<method>\w+)\((?<parameter>[^{}%]*)\))?';
+    private const REGEX_VARIABLE = '(?<expression>(?<variable>\w+)(?<nestedVariable>(\.\w+)*?)(\.(?<method>\w+)\((?<parameter>[^{}%]*)\))?)';
 
     /** @var array */
     private $templates = [];
     /** @var string */
     private $basePath = '';
+    /** @var callable */
+    private $resolveErrorCallback;
 
     /**
      * Render constructor.
@@ -35,6 +37,21 @@ class Render
     public function __construct(string $basePath = '')
     {
         $this->basePath = $basePath;
+    }
+
+    /**
+     * Add a callback to handle resolve errors (eg. call to an unknown variable). By default a resolve error will lead
+     * to an UnknownSymbolException.
+     *
+     * @param callable $resolveErrorCallback
+     *
+     * @return $this
+     */
+    public function onResolveError(callable $resolveErrorCallback): self
+    {
+        $this->resolveErrorCallback = $resolveErrorCallback;
+
+        return $this;
     }
 
     /**
@@ -224,6 +241,10 @@ class Render
         foreach ($variablePath as $variable) {
             // first check via isset for faster lookup
             if (!isset($resolved[$variable]) && !array_key_exists($variable, $resolved)) {
+                if ($this->resolveErrorCallback) {
+                    return ($this->resolveErrorCallback)($matches['expression']);
+                }
+
                 throw new UndefinedSymbolException(sprintf('Unknown variable %s', implode('.', $variablePath)));
             }
 
