@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace PHPMicroTemplate;
 
+use ArrayAccess;
 use PHPMicroTemplate\Exception\FileSystemException;
 use PHPMicroTemplate\Exception\SyntaxErrorException;
 use PHPMicroTemplate\Exception\UndefinedSymbolException;
@@ -238,20 +239,7 @@ class Render
             array_push($variablePath, ...explode('.', trim($matches['nestedVariable'], '.')));
         }
 
-        foreach ($variablePath as $variable) {
-            // first check via isset for faster lookup
-            if (!isset($resolved[$variable]) && !array_key_exists($variable, $resolved)) {
-                if ($this->resolveErrorCallback) {
-                    return ($this->resolveErrorCallback)($matches['expression']);
-                }
-
-                throw new UndefinedSymbolException(sprintf('Unknown variable %s', implode('.', $variablePath)));
-            }
-
-            $resolved = $resolved[$variable];
-        }
-
-        if (empty($matches['method'])) {
+        if (!$this->resolveNestedVariable($resolved, $variablePath, $matches) || empty($matches['method'])) {
             return $resolved;
         }
 
@@ -273,6 +261,44 @@ class Render
         }
 
         return call_user_func_array([$resolved, $matches['method']], $parameter ?? []);
+    }
+
+    /**
+     * Resolve nested variable access and object property access
+     *
+     * @param mixed $resolved
+     * @param array $variablePath
+     * @param array $matches
+     *
+     * @return bool
+     *
+     * @throws UndefinedSymbolException
+     */
+    protected function resolveNestedVariable(&$resolved, array $variablePath, array $matches): bool
+    {
+        foreach ($variablePath as $variable) {
+            if (is_object($resolved) && !($resolved instanceof ArrayAccess)) {
+                if (isset($resolved->$variable)) {
+                    $resolved = $resolved->$variable;
+
+                    continue;
+                }
+            } elseif (isset($resolved[$variable]) || (is_array($resolved) && array_key_exists($variable, $resolved))) {
+                $resolved = $resolved[$variable];
+
+                continue;
+            }
+
+            if ($this->resolveErrorCallback) {
+                $resolved = ($this->resolveErrorCallback)($matches['expression']);
+
+                return false;
+            }
+
+            throw new UndefinedSymbolException(sprintf('Unknown variable %s', implode('.', $variablePath)));
+        }
+
+        return true;
     }
 
     /**

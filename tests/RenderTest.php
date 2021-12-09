@@ -4,12 +4,15 @@ declare(strict_types = 1);
 
 namespace PHPMicroTemplate\Tests;
 
+use ArrayAccess;
+use ArrayObject;
 use PHPMicroTemplate\Exception\FileSystemException;
 use PHPMicroTemplate\Exception\SyntaxErrorException;
 use PHPMicroTemplate\Exception\UndefinedSymbolException;
 use PHPMicroTemplate\Render;
 use PHPMicroTemplate\Tests\Objects\Product;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 /**
  * Class RenderTest
@@ -139,8 +142,17 @@ class RenderTest extends TestCase
 
     /**
      * Test multiple loops following each other
+     *
+     * @dataProvider loopDataProvider
      */
-    public function testMultipleLoops(): void
+    public function testMultipleLoops($products): void
+    {
+        $result = $this->render->renderTemplate('multipleLoops.template', ['products' => $products]);
+
+        $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/multipleLoops', $result);
+    }
+
+    public function loopDataProvider(): array
     {
         $products = [
             new Product('Hammer', true),
@@ -148,9 +160,10 @@ class RenderTest extends TestCase
             new Product('Wood', true),
         ];
 
-        $result = $this->render->renderTemplate('multipleLoops.template', ['products' => $products]);
-
-        $this->assertXmlStringEqualsXmlFile(__DIR__ . '/Expectations/multipleLoops', $result);
+        return [
+            'array' => [$products],
+            'ArrayObject' => [new ArrayObject($products)],
+        ];
     }
 
     /**
@@ -282,5 +295,90 @@ class RenderTest extends TestCase
             'object function call' => ['person.renderName()'],
             'object function call with parameters' => ['person.renderName(firstname, lastname)'],
         ];
+    }
+
+    /**
+     * @dataProvider nonExistingPropertyDataProvider
+     */
+    public function testAccessExistingProperty($person): void
+    {
+        $this->assertSame(
+            'Schmidt, Hans',
+            $this->render->renderTemplateString(
+                '{{ person.lastName }}, {{ person.firstName }}',
+                [
+                    'person' => $person,
+                ]
+            )
+        );
+    }
+
+    /**
+     * @dataProvider nonExistingPropertyDataProvider
+     */
+    public function testAccessNonExistingPropertyFails($person): void
+    {
+        $this->expectException(UndefinedSymbolException::class);
+        $this->expectExceptionMessage('Unknown variable person.age');
+
+        $this->render->renderTemplateString(
+            '{{ person.age }}',
+            [
+                'person' => $person,
+            ]
+        );
+    }
+
+    public function nonExistingPropertyDataProvider(): array
+    {
+        return [
+            'array' => [
+                [
+                    'firstName' => 'Hans',
+                    'lastName' => 'Schmidt',
+                ],
+            ],
+            'arrayAccess' => [$this->getArrayAccessObject()],
+            'object' => [$this->getPersonObject()],
+        ];
+    }
+
+    private function getArrayAccessObject(): ArrayAccess
+    {
+        return new class () implements ArrayAccess {
+            private $data = [
+                'firstName' => 'Hans',
+                'lastName' => 'Schmidt',
+            ];
+
+            public function offsetExists($offset)
+            {
+                return array_key_exists($offset, $this->data);
+            }
+
+            public function offsetGet($offset)
+            {
+                return $this->data[$offset];
+            }
+
+            public function offsetSet($offset, $value)
+            {
+                $this->data[$offset] = $value;
+            }
+
+            public function offsetUnset($offset)
+            {
+                unset($this->data[$offset]);
+            }
+        };
+    }
+
+    public function getPersonObject(): stdClass
+    {
+        $person = new stdClass();
+        $person->lastName = 'Schmidt';
+        $person->firstName = 'Hans';
+
+        return $person;
     }
 }

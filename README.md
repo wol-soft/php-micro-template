@@ -134,6 +134,20 @@ $render->renderTemplateString(
 );
 ```
 
+Also, public properties of objects may be accessed from the template:
+
+```php
+$person = new stdClass();
+$person->name = 'Hans';
+
+$render->renderTemplateString(
+    '{{ person.name }}',
+    [
+        'person' => $person,
+    ]
+);
+```
+
 By default, a used variable which is not provided will result in an `UndefinedSymbolException`. You can register a callback function via `onResolveError` to handle unresolved variable errors. The callback function must implement the signature `function (string $unresolvedVariable): string`. The provided `$unresolvedVariable` will contain the whole expression which failed to resolve (eg. `myUnresolvedVariable`, `myUnresolvedObject.render(var1, var2)`).
 
 ```php
