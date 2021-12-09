@@ -298,14 +298,14 @@ class RenderTest extends TestCase
     }
 
     /**
-     * @dataProvider nonExistingPropertyDataProvider
+     * @dataProvider propertyDataProvider
      */
     public function testAccessExistingProperty($person): void
     {
         $this->assertSame(
-            'Schmidt, Hans',
+            ' Schmidt, Hans',
             $this->render->renderTemplateString(
-                '{{ person.lastName }}, {{ person.firstName }}',
+                '{{ person.title }} {{ person.lastName }}, {{ person.firstName }}',
                 [
                     'person' => $person,
                 ]
@@ -314,7 +314,7 @@ class RenderTest extends TestCase
     }
 
     /**
-     * @dataProvider nonExistingPropertyDataProvider
+     * @dataProvider propertyDataProvider
      */
     public function testAccessNonExistingPropertyFails($person): void
     {
@@ -329,13 +329,14 @@ class RenderTest extends TestCase
         );
     }
 
-    public function nonExistingPropertyDataProvider(): array
+    public function propertyDataProvider(): array
     {
         return [
             'array' => [
                 [
                     'firstName' => 'Hans',
                     'lastName' => 'Schmidt',
+                    'title' => null,
                 ],
             ],
             'arrayAccess' => [$this->getArrayAccessObject()],
@@ -349,6 +350,7 @@ class RenderTest extends TestCase
             private $data = [
                 'firstName' => 'Hans',
                 'lastName' => 'Schmidt',
+                'title' => null,
             ];
 
             public function offsetExists($offset)
@@ -378,6 +380,7 @@ class RenderTest extends TestCase
         $person = new stdClass();
         $person->lastName = 'Schmidt';
         $person->firstName = 'Hans';
+        $person->title = null;
 
         return $person;
     }

@@ -278,7 +278,7 @@ class Render
     {
         foreach ($variablePath as $variable) {
             if (is_object($resolved) && !($resolved instanceof ArrayAccess)) {
-                if (isset($resolved->$variable)) {
+                if (property_exists($resolved, $variable)) {
                     $resolved = $resolved->$variable;
 
                     continue;
