@@ -20,7 +20,7 @@ use function is_callable;
  */
 class Render
 {
-    private const REGEX_VARIABLE = '(?<expression>(?<variable>\w+)(?<nestedVariable>(\.\w+)*?)(\.(?<method>\w+)\((?<parameter>[^{}%]*)\))?)';
+    private const REGEX_VARIABLE = '(?<expression>(?<variable>(\w+|\'[^\']+\'))(?<nestedVariable>(\.\w+)*?)(\.(?<method>\w+)\((?<parameter>[^{}%]*)\))?)';
 
     /** @var array */
     private $templates = [];
@@ -237,6 +237,19 @@ class Render
 
         if (!empty($matches['nestedVariable'])) {
             array_push($variablePath, ...explode('.', trim($matches['nestedVariable'], '.')));
+        } else {
+            $variable = trim($matches['variable']);
+            if ($variable === 'true' || $variable === 'false') {
+                return $variable === 'true';
+            }
+
+            if (substr($variable, 0, 1) === "'" && substr($variable, -1) === "'") {
+                return trim($variable, "'");
+            }
+
+            if (is_numeric($variable)) {
+                return +$variable;
+            }
         }
 
         if (!$this->resolveNestedVariable($resolved, $variablePath, $matches) || empty($matches['method'])) {

@@ -329,6 +329,27 @@ class RenderTest extends TestCase
         );
     }
 
+    public function testConstantExpressions(): void
+    {
+        $this->assertSame(
+            'Schmidt, Hans!!;43;1;',
+            $this->render->renderTemplateString("{{ 'Schmidt, Hans!!' }};{{ 43 }};{{ true }};{{ false }}")
+        );
+    }
+
+    public function testConstantExpressionsAsFunctionParameter(): void
+    {
+        $this->assertSame(
+            'ABC;abc;10',
+            $this->render->renderTemplateString(
+                "{{ viewHelper.castCase( 'aBc', true ) }};{{ viewHelper.castCase( 'AbC', false ) }};{{ viewHelper.double( 5 ) }}",
+                [
+                    'viewHelper' => new ViewHelper(),
+                ]
+            )
+        );
+    }
+
     public function propertyDataProvider(): array
     {
         return [
@@ -353,22 +374,26 @@ class RenderTest extends TestCase
                 'title' => null,
             ];
 
+            #[\ReturnTypeWillChange]
             public function offsetExists($offset)
             {
                 return array_key_exists($offset, $this->data);
             }
 
+            #[\ReturnTypeWillChange]
             public function offsetGet($offset)
             {
                 return $this->data[$offset];
             }
 
-            public function offsetSet($offset, $value)
+            #[\ReturnTypeWillChange]
+            public function offsetSet($offset, $value): void
             {
                 $this->data[$offset] = $value;
             }
 
-            public function offsetUnset($offset)
+            #[\ReturnTypeWillChange]
+            public function offsetUnset($offset): void
             {
                 unset($this->data[$offset]);
             }

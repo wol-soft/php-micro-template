@@ -109,11 +109,16 @@ $result = $render->renderTemplateString(
 
 ### Replacement of variables
 
-Values which are assigned to the template and used directly will be casted to string. For assigned objects you can call methods which return a value. Afterwards the returned value will be casted to string.
+Values which are assigned to the template and used directly will be casted to string.
+For assigned objects you can call methods which return a value.
+Afterwards the returned value will be casted to string.
+As constant values integer numbers, strings in single quotes and booleans (true, false) are supported. 
 
 ```html
 {{ simpleValue }}
 {{ myObject.getProperty() }}
+{{ 'Hello World' }}
+{{ 12345 }}
 ```
 
 Your provided data may be a nested array which can be resolved in the template:
@@ -210,7 +215,8 @@ Multiple if statements can be nested. To invert an if condition the keyword *not
 
 ### function calls
 
-The methods which are called on assigned objects can take parameters. Allowed parameters are variables taken out of the current scope or another function call on an object available in the current scope.
+The methods which are called on assigned objects can take parameters.
+Allowed parameters are variables taken out of the current scope or another function call on an object available in the current scope as well as the supported constant values integer numbers, strings in single quotes and booleans (true, false).
 As an example a ViewHelper-Object can be assigned to the render process and methods of the ViewHelper can be used in the template for advanced logic inside the template.
 
 ```php
@@ -222,19 +228,19 @@ use PHPMicroTemplate\Render;
 
 class ViewHelper
 {
-    public function count(iterable $list)
+    public function count(iterable $list): int
     {
         return count($list);
     }
 
-    public function sum(...$values)
+    public function sum(float ...$values): float
     {
         return array_sum($values);
     }
 
-    public function toBold($label)
+    public function weight(string $label, int $weight = 400): string
     {
-        return "<b>$label</b>";
+        return sprintf('<span style="font-weight: %d;">%s</span>', $weight, $label);
     }
 }
 
@@ -262,7 +268,7 @@ $result = $render->renderTemplate(
     <ul class="row">
         {% foreach products as product %}
             <li class="product">
-                <span>{{ viewHelper.toBold(product.getTitle()) }}</span>
+                <span>{{ viewHelper.weightFont(product.getTitle(), 600) }}</span>
                 <span>Price: {{
                     currencyFormatter.format(
                         viewHelper.sum(
