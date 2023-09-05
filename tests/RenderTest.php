@@ -376,6 +376,14 @@ class RenderTest extends TestCase
         ];
     }
 
+    public function testNotCallableMethod(): void
+    {
+        $this->expectException(UndefinedSymbolException::class);
+        $this->expectExceptionMessage('Function unknownMethod not callable');
+
+        $this->render->renderTemplateString("{{ unknownMethod('abc') }}");
+    }
+
     public function propertyDataProvider(): array
     {
         return [
