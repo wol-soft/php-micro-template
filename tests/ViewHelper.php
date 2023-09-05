@@ -40,4 +40,8 @@ class ViewHelper
     {
         return $number * 2;
     }
+
+    public static function up(string $string): string {
+        return strtoupper($string);
+    }
 }

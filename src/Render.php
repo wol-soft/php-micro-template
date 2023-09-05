@@ -20,7 +20,7 @@ use function is_callable;
  */
 class Render
 {
-    private const REGEX_VARIABLE = '(?<expression>(?<variable>(\w+|\'[^\']+\'))(?<nestedVariable>(\.\w+)*?)(\.(?<method>\w+)\((?<parameter>[^{}%]*)\))?)';
+    private const REGEX_VARIABLE = '(?<expression>(?<variable>(\w+|\'[^\']+\'))(?<nestedVariable>(\.\w+)*)(?<methodCall>\((?<parameter>[^{}%]*)\))?)';
 
     /** @var array */
     private $templates = [];
@@ -252,28 +252,64 @@ class Render
             }
         }
 
-        if (!$this->resolveNestedVariable($resolved, $variablePath, $matches) || empty($matches['method'])) {
+        if (empty($matches['methodCall'])) {
+            $this->resolveNestedVariable($resolved, $variablePath, $matches);
+
+            return $resolved;
+        }
+
+        return $this->methodCall($matches, $variablePath, $variables);
+    }
+
+    /**
+     * @param array $matches
+     * @param array $variablePath
+     * @param array $variables
+     *
+     * @return mixed
+     *
+     * @throws SyntaxErrorException
+     * @throws UndefinedSymbolException
+     */
+    private function methodCall(array $matches, array $variablePath, array $variables)
+    {
+        $resolved = $variables;
+        $method = array_pop($variablePath);
+
+        if (empty($variablePath)) {
+            $resolvedMethod = array_key_exists($method, $variables) ? $variables[$method] : $method;
+
+            if (!is_callable($resolvedMethod)) {
+                throw new UndefinedSymbolException(sprintf('Function %s not callable', $method));
+            }
+
+            return call_user_func_array(
+                $resolvedMethod,
+                $this->extractParameter($matches['parameter'] ?? '', $variables)
+            );
+        }
+
+        if (!$this->resolveNestedVariable($resolved, $variablePath, $matches)) {
+            // resolve error callback result
             return $resolved;
         }
 
         if (!is_object($resolved)) {
             throw new UndefinedSymbolException(
-                sprintf('Trying to call %s on non-object %s', $matches['method'], implode('.', $variablePath))
+                sprintf('Trying to call %s on non-object %s', $method, implode('.', $variablePath))
             );
         }
 
-        if (!is_callable([$resolved, $matches['method']])) {
+        if (!is_callable([$resolved, $method])) {
             throw new UndefinedSymbolException(
-                sprintf('Function %s on object %s not callable', $matches['method'], implode('.', $variablePath))
+                sprintf('Function %s on object %s not callable', $method, implode('.', $variablePath))
             );
         }
 
-        // check if the function to call has a given parameter. In this case resolve the parameter
-        if (!empty($matches['parameter'])) {
-            $parameter = $this->extractParameter($matches['parameter'], $variables);
-        }
-
-        return call_user_func_array([$resolved, $matches['method']], $parameter ?? []);
+        return call_user_func_array(
+            [$resolved, $method],
+            $this->extractParameter($matches['parameter'] ?? '', $variables)
+        );
     }
 
     /**
@@ -390,6 +426,10 @@ class Render
      */
     protected function extractParameter(string $parameter, array $variables): array
     {
+        if (empty($parameter)) {
+            return [];
+        }
+
         $result = preg_match(
             '/^\s*' . self::REGEX_VARIABLE . '(\s*,\s*(?<next>.+))?\s*$/is',
             $parameter,

@@ -12,7 +12,8 @@ A minimalistic, lightweight templating engine for PHP based on regular expressio
 - Replace variables inside a template
 - Iterate over an array or iterable object
 - Conditional sections
-- Pass objects and call functions on the objects
+- Pass objects
+- call functions
 
 ## Requirements ##
 
@@ -215,7 +216,7 @@ Multiple if statements can be nested. To invert an if condition the keyword *not
 
 ### function calls
 
-The methods which are called on assigned objects can take parameters.
+The methods which are called can take parameters.
 Allowed parameters are variables taken out of the current scope or another function call on an object available in the current scope as well as the supported constant values integer numbers, strings in single quotes and booleans (true, false).
 As an example a ViewHelper-Object can be assigned to the render process and methods of the ViewHelper can be used in the template for advanced logic inside the template.
 
@@ -280,6 +281,37 @@ $result = $render->renderTemplate(
             </li>
         {% endforeach %}
     </ul>
+</html>
+```
+
+Additionally, PHP global functions can be used directly in the template as well as assigned callback methods:
+
+```php
+<?php
+
+use PHPMicroTemplate\Render;
+
+/* ... */
+
+$render = new Render(__DIR__ . '/Templates/');
+
+$result = $render->renderTemplate(
+    'functionExample.template',
+    [
+        'customCallback' => function(string $in): string {
+            return trim(strtoupper($in));
+        },
+    ]
+);
+
+/* ... */
+
+```
+
+```html
+<html>
+    <p>{{ customCallback('products') }}</p>
+    <span>{{ strtolower('UNDER CONSTRUCTION') }}</span>
 </html>
 ```
 

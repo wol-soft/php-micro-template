@@ -350,6 +350,32 @@ class RenderTest extends TestCase
         );
     }
 
+    public function testBuiltinFunctionCall(): void
+    {
+        $this->assertSame('HELLO WORLD', $this->render->renderTemplateString("{{ strtoupper('hello world') }}"));
+    }
+
+    /**
+     * @dataProvider topLevelFunctionCallDataProvider
+     */
+    public function testTopLevelFunctionCall(callable $callback): void
+    {
+        $this->assertSame(
+            'HELLO WORLD',
+            $this->render->renderTemplateString("{{ up('hello world') }}", ['up' => $callback])
+        );
+    }
+
+    public function topLevelFunctionCallDataProvider()
+    {
+        return [
+            'builtin' => ['strtoupper'],
+            'closure' => [function ($i) { return strtoupper($i); } ],
+            'object method' => [[new ViewHelper(), 'up']],
+            'static method' => [[ViewHelper::class, 'up']],
+        ];
+    }
+
     public function propertyDataProvider(): array
     {
         return [
