@@ -131,7 +131,18 @@ class Render
             '/\{%\s*foreach(?<index>-[\d]+-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+((?<key>\w+)\s*,\s*)?(?<value>\w+)\s*%\}' .
                 '(?<body>.+)' .
             '\{%\s*endforeach\k<index>\s*%\}/si',
-            function (array $matches) use ($variables): string {
+            function (array $matches) use ($variables, $template): string {
+                // If this foreach is preceded by an unclosed {% if %} open tag in the template, it is nested inside a
+                // conditional that hasn't been evaluated yet. Return the original match unchanged so that
+                // resolveConditionals can strip the enclosing if-branch first, then call resolveLoops on the result.
+                $foreachPos = strpos($template, $matches[0]);
+                $prefix = substr($template, 0, $foreachPos);
+                $openIfCount = preg_match_all('/\{%\s*if-[\d]+-[\d]+-/i', $prefix);
+                $closeIfCount = preg_match_all('/\{%\s*endif-[\d]+-[\d]+-/i', $prefix);
+                if ($openIfCount > $closeIfCount) {
+                    return $matches[0];
+                }
+
                 $output = '';
 
                 foreach ($this->getValue($matches, $variables) as $key => $value) {
@@ -196,11 +207,9 @@ class Render
                         $orBranches[] = $andBranchTrue;
                     }
 
-                    if (in_array(true, $orBranches)) {
-                        return $conditionalBody[0];
-                    }
+                    $branch = in_array(true, $orBranches) ? $conditionalBody[0] : ($conditionalBody[1] ?? '');
 
-                    return $conditionalBody[1] ?? '';
+                    return $this->resolveLoops($branch, $variables);
                 },
                 $template,
                 -1,

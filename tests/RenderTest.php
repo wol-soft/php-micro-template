@@ -417,6 +417,83 @@ class RenderTest extends TestCase
         $this->render->renderTemplateString("{{ unknownMethod('abc') }}");
     }
 
+    /**
+     * A {% foreach %} whose iterable is a method call on a nullable variable must not be evaluated when
+     * it is wrapped in a falsy {% if %} guard — previously the foreach iterable was resolved before the
+     * enclosing if, causing a fatal "Trying to call ... on non-object" error.
+     */
+    public function testForeachInsideFalsyIfIsNotEvaluated(): void
+    {
+        $template = '{% if items %}{% foreach items.getCategories() as cat %}{{ cat }}{% endforeach %}{% endif %}';
+
+        $this->assertSame(
+            '',
+            $this->render->renderTemplateString($template, ['items' => null]),
+        );
+    }
+
+    /**
+     * When the {% if %} guard is truthy the {% foreach %} inside must still execute normally.
+     */
+    public function testForeachInsideTruthyIfIsEvaluated(): void
+    {
+        $template = '{% if items %}{% foreach items.getCategories() as cat %}{{ cat }},{% endforeach %}{% endif %}';
+
+        $this->assertSame(
+            'Oak,Birch,',
+            $this->render->renderTemplateString(
+                $template,
+                ['items' => new Product('Wood', true, ['Oak', 'Birch'])],
+            ),
+        );
+    }
+
+    /**
+     * A {% if %} inside a {% foreach %} that uses the loop variable in its condition must still work
+     * correctly — the loop variable must be in scope when the conditional is evaluated.
+     */
+    public function testIfInsideForeachCanUseLoopVariable(): void
+    {
+        $template = '{% foreach items as item %}{% if item.isVisible() %}{{ item.getTitle() }}{% endif %}{% endforeach %}';
+
+        $products = [
+            new Product('Hammer', true),
+            new Product('Nails', false),
+            new Product('Wood', true),
+        ];
+
+        $this->assertSame(
+            'HammerWood',
+            $this->render->renderTemplateString($template, ['items' => $products]),
+        );
+    }
+
+    /**
+     * A {% foreach %} inside the true-branch of a top-level {% if %}, and a sibling {% foreach %} outside
+     * any conditional, must both resolve correctly in a single template.
+     */
+    public function testForeachInsideIfAlongsideSiblingForeach(): void
+    {
+        $template =
+            '{% if extra %}{% foreach extra.getCategories() as cat %}[{{ cat }}]{% endforeach %}{% endif %}' .
+            '{% foreach items as item %}{{ item.getTitle() }}{% endforeach %}';
+
+        $products = [new Product('Hammer', true), new Product('Wood', true)];
+
+        $this->assertSame(
+            'HammerWood',
+            $this->render->renderTemplateString($template, ['items' => $products, 'extra' => null]),
+        );
+
+        $this->assertSame(
+            '[Oak][Birch]HammerWood',
+            $this->render->renderTemplateString(
+                $template,
+                ['items' => $products, 'extra' => new Product('Extra', true, ['Oak', 'Birch'])],
+            ),
+        );
+    }
+
     public function propertyDataProvider(): array
     {
         return [
