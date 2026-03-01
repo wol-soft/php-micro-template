@@ -482,7 +482,7 @@ class RenderTest extends TestCase
 
         $this->assertSame(
             'HammerWood',
-            $this->render->renderTemplateString($template, ['items' => $products, 'extra' => null]),
+            $this->render->renderTemplateString($template, ['items' => $products, 'extra' => null])
         );
 
         $this->assertSame(
