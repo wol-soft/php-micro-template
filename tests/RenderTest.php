@@ -428,7 +428,7 @@ class RenderTest extends TestCase
 
         $this->assertSame(
             '',
-            $this->render->renderTemplateString($template, ['items' => null]),
+            $this->render->renderTemplateString($template, ['items' => null])
         );
     }
 
@@ -443,8 +443,8 @@ class RenderTest extends TestCase
             'Oak,Birch,',
             $this->render->renderTemplateString(
                 $template,
-                ['items' => new Product('Wood', true, ['Oak', 'Birch'])],
-            ),
+                ['items' => new Product('Wood', true, ['Oak', 'Birch'])]
+            )
         );
     }
 
@@ -489,8 +489,8 @@ class RenderTest extends TestCase
             '[Oak][Birch]HammerWood',
             $this->render->renderTemplateString(
                 $template,
-                ['items' => $products, 'extra' => new Product('Extra', true, ['Oak', 'Birch'])],
-            ),
+                ['items' => $products, 'extra' => new Product('Extra', true, ['Oak', 'Birch'])]
+            )
         );
     }
 
