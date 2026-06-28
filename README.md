@@ -322,6 +322,16 @@ $result = $render->renderTemplate(
     <span>{{ strtolower('UNDER CONSTRUCTION') }}</span>
 </html>
 ```
+### Comments
+
+With the `{# ... #}` syntax, the template can contain comments which are stripped from the output:
+
+```html
+<html>
+    {# customCallback delivers a summary, just like we need it here #}
+    <p>{{ customCallback('products') }}</p>
+</html>
+```
 
 ### Whitespace tolerance
 

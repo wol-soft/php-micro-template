@@ -83,13 +83,22 @@ class Render
      */
     public function renderTemplateString(string $template, array $variables = []): string
     {
-        $output = $this->indexControlStructure($template, 'foreach');
+        $output = $this->stripComments($template);
+        $output = $this->indexControlStructure($output, 'foreach');
         $output = $this->indexControlStructure($output, 'if', ['else']);
 
         $output = $this->resolveLoops($output, $variables);
         $output = $this->resolveConditionals($output, $variables);
 
         return $this->replaceVariablesInTemplate($output, $variables);
+    }
+
+    /**
+     * Strip `{# ... #}` comment blocks
+     */
+    protected function stripComments(string $template): string
+    {
+        return preg_replace('/\{#.*?#\}/s', '', $template);
     }
 
     /**

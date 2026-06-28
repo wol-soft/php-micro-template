@@ -149,6 +149,95 @@ class RenderTest extends TestCase
     }
 
     /**
+     * `{# ... #}` blocks are template-time comments: stripped before any other processing
+     * happens and never reach the rendered output.
+     *
+     * @dataProvider commentDataProvider
+     */
+    public function testCommentBlockIsStrippedFromOutput(string $template, string $expected, array $variables = []): void
+    {
+        $this->assertSame($expected, $this->render->renderTemplateString($template, $variables));
+    }
+
+    public function commentDataProvider(): array
+    {
+        return [
+            'single-line comment stripped' => [
+                'before {# this should not appear #} after',
+                'before  after',
+            ],
+            'multi-line comment stripped' => [
+                "before {# this comment\nspans multiple\nlines #} after",
+                'before  after',
+            ],
+            'multiple comments stripped' => [
+                '{# one #}A{# two #}B{# three #}',
+                'AB',
+            ],
+            'comment between control structures' => [
+                '{% if flag %}body{% endif %}{# trailing comment #}',
+                'body',
+                ['flag' => true],
+            ],
+            'comment inside conditional body is also stripped' => [
+                '{% if flag %}before{# inner #}after{% endif %}',
+                'beforeafter',
+                ['flag' => true],
+            ],
+            'empty comment' => [
+                'a{##}b',
+                'ab',
+            ],
+            'comment with only whitespace' => [
+                'a{#   #}b',
+                'ab',
+            ],
+        ];
+    }
+
+    /**
+     * The comment-stripping pass runs before variable resolution, so a `{{ var }}` inside a
+     * comment is removed along with the comment and never triggers UndefinedSymbolException
+     * for a variable that was never provided.
+     */
+    public function testCommentSuppressesUndefinedVariableInsideIt(): void
+    {
+        $this->assertSame(
+            'kept',
+            $this->render->renderTemplateString('{# {{ someUndefinedVariable }} #}kept'),
+        );
+    }
+
+    /**
+     * Comment-stripping must also run before control-structure indexing — a `{% if %}`
+     * inside a comment is removed and never participates in the if/endif pairing logic, so
+     * an unmatched-tag scenario inside a comment does not corrupt subsequent real
+     * conditionals.
+     */
+    public function testCommentSuppressesControlStructureInsideIt(): void
+    {
+        $this->assertSame(
+            'after',
+            $this->render->renderTemplateString(
+                '{# {% if undefined %}never{% endif %} #}after',
+            ),
+        );
+    }
+
+    /**
+     * The first `#}` closes the comment — comments are non-greedy. A literal `#}` cannot
+     * appear inside a comment block; if a template author needs that sequence in the
+     * rendered output, they must place it outside any comment.
+     */
+    public function testCommentNonGreedyClosesAtFirstHashBrace(): void
+    {
+        $this->assertSame(
+            ' between #} outer',
+            $this->render->renderTemplateString('{# first #} between #} outer'),
+        );
+    }
+
+    /**
      * Test if the syntax of a template is whitespace tolerant
      */
     public function testWhitespaceTolerance(): void
