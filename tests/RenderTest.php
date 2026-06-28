@@ -204,7 +204,7 @@ class RenderTest extends TestCase
     {
         $this->assertSame(
             'kept',
-            $this->render->renderTemplateString('{# {{ someUndefinedVariable }} #}kept'),
+            $this->render->renderTemplateString('{# {{ someUndefinedVariable }} #}kept')
         );
     }
 
@@ -219,8 +219,8 @@ class RenderTest extends TestCase
         $this->assertSame(
             'after',
             $this->render->renderTemplateString(
-                '{# {% if undefined %}never{% endif %} #}after',
-            ),
+                '{# {% if undefined %}never{% endif %} #}after'
+            )
         );
     }
 
@@ -233,7 +233,7 @@ class RenderTest extends TestCase
     {
         $this->assertSame(
             ' between #} outer',
-            $this->render->renderTemplateString('{# first #} between #} outer'),
+            $this->render->renderTemplateString('{# first #} between #} outer')
         );
     }
 
