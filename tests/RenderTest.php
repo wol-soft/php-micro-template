@@ -263,6 +263,352 @@ class RenderTest extends TestCase
     }
 
     /**
+     * A {% foreach %}/{% if %}/{% else %}/{% endif %}/{% endforeach %} tag that is the only non-whitespace content
+     * on its line contributes nothing to the rendered output - its own leading whitespace and trailing newline are
+     * stripped. This runs unconditionally (independent of the opt-in block indent width dedent feature) on the
+     * default Render instance from setUp().
+     *
+     * @dataProvider standaloneControlTagDataProvider
+     */
+    public function testStandaloneControlTagsAreTrimmed(string $template, array $variables, string $expected): void
+    {
+        $this->assertSame($expected, $this->render->renderTemplateString($template, $variables));
+    }
+
+    public function standaloneControlTagDataProvider(): array
+    {
+        return [
+            'standalone foreach leaves no blank line' => [
+                <<<'TEMPLATE'
+before
+    {% foreach items as item %}
+        [{{ item }}]
+    {% endforeach %}
+after
+TEMPLATE,
+                ['items' => ['a', 'b']],
+                <<<'EXPECTED'
+before
+        [a]
+        [b]
+after
+EXPECTED,
+            ],
+            'standalone if (true) leaves no blank line' => [
+                <<<'TEMPLATE'
+before
+    {% if flag %}
+        shown
+    {% endif %}
+after
+TEMPLATE,
+                ['flag' => true],
+                <<<'EXPECTED'
+before
+        shown
+after
+EXPECTED,
+            ],
+            'standalone if (false) leaves no blank line' => [
+                <<<'TEMPLATE'
+before
+    {% if flag %}
+        shown
+    {% endif %}
+after
+TEMPLATE,
+                ['flag' => false],
+                "before\nafter",
+            ],
+            'standalone if/else, true branch' => [
+                <<<'TEMPLATE'
+before
+    {% if flag %}
+        true branch
+    {% else %}
+        false branch
+    {% endif %}
+after
+TEMPLATE,
+                ['flag' => true],
+                <<<'EXPECTED'
+before
+        true branch
+after
+EXPECTED,
+            ],
+            'standalone if/else, false branch' => [
+                <<<'TEMPLATE'
+before
+    {% if flag %}
+        true branch
+    {% else %}
+        false branch
+    {% endif %}
+after
+TEMPLATE,
+                ['flag' => false],
+                <<<'EXPECTED'
+before
+        false branch
+after
+EXPECTED,
+            ],
+        ];
+    }
+
+    /**
+     * A tag that is NOT alone on its own line (real content precedes or follows it on the same line) must keep its
+     * surrounding whitespace exactly as written - trimming must never remove a meaningful separating space.
+     *
+     * @dataProvider inlineControlTagDataProvider
+     */
+    public function testInlineControlTagsPreserveSurroundingWhitespace(
+        string $template,
+        array $variables,
+        string $expected,
+    ): void {
+        $this->assertSame($expected, $this->render->renderTemplateString($template, $variables));
+    }
+
+    public function inlineControlTagDataProvider(): array
+    {
+        return [
+            'if/endif inline within a single line' => [
+                '<li>{% if visible %}shown{% endif %}</li>',
+                ['visible' => true],
+                '<li>shown</li>',
+            ],
+            'if/else/endif inline, false branch' => [
+                '<li>{% if visible %}shown{% else %}hidden{% endif %}</li>',
+                ['visible' => false],
+                '<li>hidden</li>',
+            ],
+            'tag preceded by real content on the same line keeps a meaningful separating space' => [
+                'label {% if flag %}x{% endif %} tail',
+                ['flag' => true],
+                'label x tail',
+            ],
+        ];
+    }
+
+    /**
+     * A tag only counts as "alone on its own line" - eligible for the leading-whitespace-and-trailing-newline trim -
+     * when BOTH sides confirm it. If real content precedes the tag on the same line, the fact that a newline happens
+     * to follow the tag must not cause that newline to be swallowed: doing so would merge the following line into
+     * this one. Regression test for exactly that bug, found while wiring this feature into a real multi-line
+     * docblock template that mixes inline tag usage with normal line breaks.
+     */
+    public function testTagPrecededByContentDoesNotConsumeFollowingNewline(): void
+    {
+        $template = <<<'TEMPLATE'
+/**
+ * Foo
+{% if namespace %} * @package {{ namespace }} {% endif %}
+ * next line
+ */
+TEMPLATE;
+
+        // trailing space after "App" is intentional: the one space that separated {{ namespace }} from the inline
+        // {% endif %} in the template. Asserted separately via rtrim()+assertSame() on that one line, rather than
+        // relying on a trailing space at the end of a heredoc line, which an editor could silently strip unnoticed.
+        $result = $this->render->renderTemplateString($template, ['namespace' => 'App']);
+        $resultLines = explode("\n", $result);
+
+        $expected = <<<'EXPECTED'
+/**
+ * Foo
+ * @package App
+ * next line
+ */
+EXPECTED;
+
+        $this->assertSame(' * @package App ', $resultLines[2]);
+        $this->assertSame($expected, implode("\n", array_map('rtrim', $resultLines)));
+    }
+
+    /**
+     * With an opt-in block indent width, a block tag's body is dedented by exactly that fixed width - not by the
+     * tag's own (variable) measured column - regardless of how deeply the tag itself is nested in the template
+     * source. This makes every {% foreach %}/{% if %} transparent: its body ends up at the same column as its own
+     * tag, whatever that column is, instead of accumulating one extra indent level per level of template nesting.
+     *
+     * @dataProvider blockIndentWidthDataProvider
+     */
+    public function testBlockIndentWidthMakesBlocksTransparent(string $template, array $variables, string $expected): void
+    {
+        $render = new Render('', 4);
+
+        $this->assertSame($expected, $render->renderTemplateString($template, $variables));
+    }
+
+    public function blockIndentWidthDataProvider(): array
+    {
+        return [
+            'if nested two real levels deep keeps its real depth, not its template-literal depth' => [
+                <<<'TEMPLATE'
+class Foo
+{
+    public function bar()
+    {
+        {% if flag %}
+            statement();
+        {% endif %}
+    }
+}
+TEMPLATE,
+                ['flag' => true],
+                <<<'EXPECTED'
+class Foo
+{
+    public function bar()
+    {
+        statement();
+    }
+}
+EXPECTED,
+            ],
+            'nested foreach does not accumulate indentation per level' => [
+                <<<'TEMPLATE'
+class Foo
+{
+    {% foreach props as prop %}
+        {% foreach prop.attrs as attr %}
+            #[{{ attr }}]
+        {% endforeach %}
+        member {{ prop.name }};
+    {% endforeach %}
+}
+TEMPLATE,
+                ['props' => [(object) ['attrs' => ['A', 'B'], 'name' => 'x']]],
+                <<<'EXPECTED'
+class Foo
+{
+    #[A]
+    #[B]
+    member x;
+}
+EXPECTED,
+            ],
+            'if nested inside foreach stays transparent for both, filtering still works' => [
+                <<<'TEMPLATE'
+class Foo
+{
+    {% foreach items as item %}
+        {% if item.visible %}
+            public ${{ item.name }};
+        {% endif %}
+    {% endforeach %}
+}
+TEMPLATE,
+                [
+                    'items' => [
+                        (object) ['visible' => true, 'name' => 'a'],
+                        (object) ['visible' => false, 'name' => 'b'],
+                        (object) ['visible' => true, 'name' => 'c'],
+                    ],
+                ],
+                <<<'EXPECTED'
+class Foo
+{
+    public $a;
+    public $c;
+}
+EXPECTED,
+            ],
+        ];
+    }
+
+    /**
+     * Without an explicit block indent width the constructor defaults to 0, meaning dedent never applies - only the
+     * unconditional standalone-tag trim runs. This keeps every template's real content byte-for-byte identical to
+     * how it was written, unless a caller explicitly opts in to the width.
+     */
+    public function testBlockIndentWidthDefaultsToDisabled(): void
+    {
+        $template = <<<'TEMPLATE'
+class Foo
+{
+    public function bar()
+    {
+        {% if flag %}
+            statement();
+        {% endif %}
+    }
+}
+TEMPLATE;
+
+        $expected = <<<'EXPECTED'
+class Foo
+{
+    public function bar()
+    {
+            statement();
+    }
+}
+EXPECTED;
+
+        $this->assertSame($expected, $this->render->renderTemplateString($template, ['flag' => true]));
+    }
+
+    /**
+     * @dataProvider emptyBlockBodyDataProvider
+     */
+    public function testEmptyBlockBodyProducesNoResidualWhitespace(string $template, array $variables, string $expected): void
+    {
+        $this->assertSame($expected, $this->render->renderTemplateString($template, $variables));
+    }
+
+    public function emptyBlockBodyDataProvider(): array
+    {
+        return [
+            'foreach over an empty array leaves nothing behind' => [
+                <<<'TEMPLATE'
+before
+    {% foreach items as item %}
+    {% endforeach %}
+after
+TEMPLATE,
+                ['items' => []],
+                "before\nafter",
+            ],
+            'if with an empty true branch leaves nothing behind' => [
+                <<<'TEMPLATE'
+before
+    {% if flag %}
+    {% endif %}
+after
+TEMPLATE,
+                ['flag' => true],
+                "before\nafter",
+            ],
+        ];
+    }
+
+    /**
+     * A standalone tag positioned at the very end of the template, with no trailing newline or content after it,
+     * must not raise a PHP warning for an undefined "closeTrail" match group. PCRE omits a named capture group from
+     * the matches array entirely (rather than including it as an empty string) when it is both optional and the
+     * last group in the pattern and it did not participate in the match - and end of template is just as much
+     * "nothing meaningful follows the tag" as an actual trailing newline is, so it must still count as standalone.
+     */
+    public function testStandaloneTagAtEndOfTemplateWithNoTrailingNewline(): void
+    {
+        // deliberately no trailing newline after {% endif %} - that's the case under test
+        $template = <<<'TEMPLATE'
+before
+    {% if flag %}
+        shown
+    {% endif %}
+TEMPLATE;
+
+        $this->assertSame(
+            "before\n        shown\n",
+            $this->render->renderTemplateString($template, ['flag' => true])
+        );
+    }
+
+    /**
      * Test multiple loops following each other
      *
      * @dataProvider loopDataProvider
