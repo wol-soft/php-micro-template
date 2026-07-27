@@ -282,82 +282,82 @@ class RenderTest extends TestCase
 
     public function standaloneControlTagDataProvider(): array
     {
-        return [
-            'standalone foreach leaves no blank line' => [
-                <<<'TEMPLATE'
+        // Heredocs are assigned to a variable and terminated with ";" on their own statement rather than being
+        // written inline as an array element terminated by ",": PHP before 7.3 only recognizes a heredoc/nowdoc
+        // closing marker when nothing but a semicolon follows it on that line, so a marker immediately followed
+        // by a comma (as an inline array element would require) fails to parse on PHP 7.1/7.2.
+        $standaloneForeachTemplate = <<<'TEMPLATE'
 before
     {% foreach items as item %}
         [{{ item }}]
     {% endforeach %}
 after
-TEMPLATE,
-                ['items' => ['a', 'b']],
-                <<<'EXPECTED'
+TEMPLATE;
+        $standaloneForeachExpected = <<<'EXPECTED'
 before
     [a]
     [b]
 after
-EXPECTED,
-            ],
-            'standalone if (true) leaves no blank line' => [
-                <<<'TEMPLATE'
+EXPECTED;
+
+        $standaloneIfTemplate = <<<'TEMPLATE'
 before
     {% if flag %}
         shown
     {% endif %}
 after
-TEMPLATE,
-                ['flag' => true],
-                <<<'EXPECTED'
+TEMPLATE;
+        $standaloneIfTrueExpected = <<<'EXPECTED'
 before
     shown
 after
-EXPECTED,
-            ],
-            'standalone if (false) leaves no blank line' => [
-                <<<'TEMPLATE'
+EXPECTED;
+
+        $standaloneIfElseTemplate = <<<'TEMPLATE'
 before
     {% if flag %}
-        shown
+        true branch
+    {% else %}
+        false branch
     {% endif %}
 after
-TEMPLATE,
+TEMPLATE;
+        $standaloneIfElseTrueExpected = <<<'EXPECTED'
+before
+    true branch
+after
+EXPECTED;
+        $standaloneIfElseFalseExpected = <<<'EXPECTED'
+before
+    false branch
+after
+EXPECTED;
+
+        return [
+            'standalone foreach leaves no blank line' => [
+                $standaloneForeachTemplate,
+                ['items' => ['a', 'b']],
+                $standaloneForeachExpected,
+            ],
+            'standalone if (true) leaves no blank line' => [
+                $standaloneIfTemplate,
+                ['flag' => true],
+                $standaloneIfTrueExpected,
+            ],
+            'standalone if (false) leaves no blank line' => [
+                $standaloneIfTemplate,
                 ['flag' => false],
                 "before\nafter",
             ],
             'standalone if/else, true branch' => [
-                <<<'TEMPLATE'
-before
-    {% if flag %}
-        true branch
-    {% else %}
-        false branch
-    {% endif %}
-after
-TEMPLATE,
+                $standaloneIfElseTemplate,
                 ['flag' => true],
-                <<<'EXPECTED'
-before
-    true branch
-after
-EXPECTED,
+                $standaloneIfElseTrueExpected,
             ],
             'standalone if/else, false branch' => [
-                <<<'TEMPLATE'
-before
-    {% if flag %}
-        true branch
-    {% else %}
-        false branch
-    {% endif %}
-after
-TEMPLATE,
+                $standaloneIfElseTemplate,
                 ['flag' => false],
-                <<<'EXPECTED'
-before
-    false branch
-after
-EXPECTED,
+                $standaloneIfElseFalseExpected,
             ],
         ];
     }
@@ -447,9 +447,9 @@ EXPECTED;
 
     public function autoDetectedDedentDataProvider(): array
     {
-        return [
-            'if nested two real levels deep keeps its real depth, not its template-literal depth' => [
-                <<<'TEMPLATE'
+        // See standaloneControlTagDataProvider() for why each heredoc is assigned to a variable (terminated by
+        // ";") rather than written inline as an array element (which would require a "," terminator).
+        $nestedIfTemplate = <<<'TEMPLATE'
 class Foo
 {
     public function bar()
@@ -459,9 +459,8 @@ class Foo
         {% endif %}
     }
 }
-TEMPLATE,
-                ['flag' => true],
-                <<<'EXPECTED'
+TEMPLATE;
+        $nestedIfExpected = <<<'EXPECTED'
 class Foo
 {
     public function bar()
@@ -469,10 +468,9 @@ class Foo
         statement();
     }
 }
-EXPECTED,
-            ],
-            'nested foreach does not accumulate indentation per level' => [
-                <<<'TEMPLATE'
+EXPECTED;
+
+        $nestedForeachTemplate = <<<'TEMPLATE'
 class Foo
 {
     {% foreach props as prop %}
@@ -482,19 +480,17 @@ class Foo
         member {{ prop.name }};
     {% endforeach %}
 }
-TEMPLATE,
-                ['props' => [(object) ['attrs' => ['A', 'B'], 'name' => 'x']]],
-                <<<'EXPECTED'
+TEMPLATE;
+        $nestedForeachExpected = <<<'EXPECTED'
 class Foo
 {
     #[A]
     #[B]
     member x;
 }
-EXPECTED,
-            ],
-            'if nested inside foreach stays transparent for both, filtering still works' => [
-                <<<'TEMPLATE'
+EXPECTED;
+
+        $ifInsideForeachTemplate = <<<'TEMPLATE'
 class Foo
 {
     {% foreach items as item %}
@@ -503,7 +499,43 @@ class Foo
         {% endif %}
     {% endforeach %}
 }
-TEMPLATE,
+TEMPLATE;
+        $ifInsideForeachExpected = <<<'EXPECTED'
+class Foo
+{
+    public $a;
+    public $c;
+}
+EXPECTED;
+
+        $sameColumnTemplate = <<<'TEMPLATE'
+class Foo
+{
+    {% if flag %}
+    statement();
+    {% endif %}
+}
+TEMPLATE;
+        $sameColumnExpected = <<<'EXPECTED'
+class Foo
+{
+    statement();
+}
+EXPECTED;
+
+        return [
+            'if nested two real levels deep keeps its real depth, not its template-literal depth' => [
+                $nestedIfTemplate,
+                ['flag' => true],
+                $nestedIfExpected,
+            ],
+            'nested foreach does not accumulate indentation per level' => [
+                $nestedForeachTemplate,
+                ['props' => [(object) ['attrs' => ['A', 'B'], 'name' => 'x']]],
+                $nestedForeachExpected,
+            ],
+            'if nested inside foreach stays transparent for both, filtering still works' => [
+                $ifInsideForeachTemplate,
                 [
                     'items' => [
                         (object) ['visible' => true, 'name' => 'a'],
@@ -511,30 +543,12 @@ TEMPLATE,
                         (object) ['visible' => true, 'name' => 'c'],
                     ],
                 ],
-                <<<'EXPECTED'
-class Foo
-{
-    public $a;
-    public $c;
-}
-EXPECTED,
+                $ifInsideForeachExpected,
             ],
             'body at the same column as its tag is left alone - the detected difference is 0' => [
-                <<<'TEMPLATE'
-class Foo
-{
-    {% if flag %}
-    statement();
-    {% endif %}
-}
-TEMPLATE,
+                $sameColumnTemplate,
                 ['flag' => true],
-                <<<'EXPECTED'
-class Foo
-{
-    statement();
-}
-EXPECTED,
+                $sameColumnExpected,
             ],
         ];
     }
@@ -587,24 +601,30 @@ TEMPLATE;
 
     public function emptyBlockBodyDataProvider(): array
     {
-        return [
-            'foreach over an empty array leaves nothing behind' => [
-                <<<'TEMPLATE'
+        // See standaloneControlTagDataProvider() for why each heredoc is assigned to a variable (terminated by
+        // ";") rather than written inline as an array element (which would require a "," terminator).
+        $emptyForeachTemplate = <<<'TEMPLATE'
 before
     {% foreach items as item %}
     {% endforeach %}
 after
-TEMPLATE,
-                ['items' => []],
-                "before\nafter",
-            ],
-            'if with an empty true branch leaves nothing behind' => [
-                <<<'TEMPLATE'
+TEMPLATE;
+
+        $emptyIfTemplate = <<<'TEMPLATE'
 before
     {% if flag %}
     {% endif %}
 after
-TEMPLATE,
+TEMPLATE;
+
+        return [
+            'foreach over an empty array leaves nothing behind' => [
+                $emptyForeachTemplate,
+                ['items' => []],
+                "before\nafter",
+            ],
+            'if with an empty true branch leaves nothing behind' => [
+                $emptyIfTemplate,
                 ['flag' => true],
                 "before\nafter",
             ],
