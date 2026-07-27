@@ -215,10 +215,26 @@ class Render
             && $this->isAtLineEndOrEof($template, $matchOffset, $matches[0], $matches['closeTrail'] ?? '');
 
         $body = $openStandalone
-            ? $this->dedentBody($matches['body'], $this->whitespaceControl->getBlockIndentWidth())
+            ? $this->dedentBody($matches['body'], $this->detectDedentWidth($matches['indent'], $matches['body']))
             : $matches['body'];
 
         return [$openStandalone, $closeStandalone, $body];
+    }
+
+    /**
+     * Determine how far a standalone tag's body is indented relative to the tag itself, by comparing the tag's
+     * own leading whitespace against the leading whitespace of the body's first line - not a fixed, configured
+     * width. Template authors conventionally indent a block's body one level deeper than the block tag itself;
+     * measuring that difference per tag, instead of requiring a matching width to be configured up front, makes
+     * the feature adapt automatically to whatever indent width or style (spaces, tabs, two columns, four columns)
+     * the template already uses, and degrades to a no-op (0) for a body that isn't indented deeper than its tag
+     * at all, rather than requiring a caller to opt out explicitly.
+     */
+    private function detectDedentWidth(string $tagIndent, string $body): int
+    {
+        preg_match('/^[ \t]*/', $body, $bodyIndentMatch);
+
+        return max(0, strlen($bodyIndentMatch[0]) - strlen($tagIndent));
     }
 
     /**
@@ -246,11 +262,12 @@ class Render
     }
 
     /**
-     * Strip up to $width characters of leading whitespace from every line of $body. This must be a fixed width, not
-     * the resolved tag's own (variable) measured indentation - stripping the tag's own column would collapse body
-     * content to a constant absolute depth regardless of nesting, instead of preserving it relative to whatever
-     * ambient depth the tag itself sits at. A fixed one-level width makes each block transparent: its body ends up
-     * exactly as deep as the tag, whether that tag is nested two levels or ten.
+     * Strip up to $width characters of leading whitespace from every line of $body. $width is the difference
+     * between the tag's own column and its body's first line's column (see detectDedentWidth()), never the tag's
+     * raw absolute column itself - stripping the tag's own column would collapse body content to a constant
+     * absolute depth regardless of nesting, instead of preserving it relative to whatever ambient depth the tag
+     * itself sits at. A one-level difference makes each block transparent: its body ends up exactly as deep as
+     * the tag, whether that tag is nested two levels or ten.
      */
     private function dedentBody(string $body, int $width): string
     {

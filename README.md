@@ -14,6 +14,7 @@ A minimalistic, lightweight templating engine for PHP with zero dependencies bas
 - Conditional sections
 - Pass objects
 - call functions
+- opt-in whitespace control for standalone control tags
 
 ## Requirements ##
 
@@ -353,3 +354,64 @@ The templating syntax is whitespace tolerant so a template like the one below wo
     </ul>
 {%endif%}
 ```
+
+### Whitespace control
+
+By default, a `{% foreach %}`/`{% if %}` tag that sits alone on its own line contributes nothing to the rendered
+output, but its own line (leading whitespace and trailing newline) is left behind as-is. For a template like
+
+```html
+<ul>
+    {% foreach items as item %}
+        <li>{{ item }}</li>
+    {% endforeach %}
+</ul>
+```
+
+that produces:
+
+```html
+<ul>
+    
+        <li>Hammer</li>
+        <li>Nails</li>
+    
+</ul>
+```
+
+- a whitespace-only line left over from each tag, and the body accumulating one extra indent level per level of
+template nesting instead of staying at the column the surrounding markup would suggest.
+
+Passing a `WhitespaceControl` instance as the second argument to `Render` opts into cleaning both up:
+
+```php
+<?php
+
+use PHPMicroTemplate\Render;
+use PHPMicroTemplate\WhitespaceControl;
+
+/* ... */
+
+$render = new Render(__DIR__ . '/Templates/', new WhitespaceControl());
+```
+
+With whitespace control enabled, a standalone tag's own line is stripped entirely, and its body is dedented by
+however far the body's first line is indented past the tag itself - detected automatically per tag, not
+configured, so it adapts to whatever indent width or style (spaces, tabs, two columns, four columns) the template
+already uses. The same template now renders as:
+
+```html
+<ul>
+    <li>Hammer</li>
+    <li>Nails</li>
+</ul>
+```
+
+A tag only counts as standalone when nothing but whitespace precedes it back to the previous newline *and*
+nothing but whitespace follows it up to the next newline - a tag that shares its line with real content (eg.
+`<li>{% if visible %}...{% endif %}</li>`) always keeps its surrounding whitespace exactly as written, since
+stripping it there could merge unrelated content together. Likewise, a body that isn't indented deeper than its
+own tag is left untouched - the detected difference is 0, so there is nothing to dedent.
+
+Without a `WhitespaceControl` instance (the default, `new Render($basePath)`), templates render exactly as before
+this feature existed.

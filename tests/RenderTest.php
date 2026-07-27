@@ -30,9 +30,7 @@ class RenderTest extends TestCase
     public function setUp(): void
     {
         $this->render = new Render(__DIR__ . '/Templates/');
-        // blockIndentWidth 0: trimming enabled, dedent effectively a no-op. Tests that specifically exercise
-        // dedent build their own Render with a non-zero width instead of using this shared instance.
-        $this->renderWithWhitespaceControl = new Render(__DIR__ . '/Templates/', new WhitespaceControl(0));
+        $this->renderWithWhitespaceControl = new Render(__DIR__ . '/Templates/', new WhitespaceControl());
     }
 
     public function testRenderNotExistingTemplate(): void
@@ -271,7 +269,9 @@ class RenderTest extends TestCase
     /**
      * A {% foreach %}/{% if %}/{% else %}/{% endif %}/{% endforeach %} tag that is the only non-whitespace content
      * on its line contributes nothing to the rendered output - its own leading whitespace and trailing newline are
-     * stripped, when whitespace control is enabled.
+     * stripped, when whitespace control is enabled. Since these templates use the conventional style of indenting
+     * a block's body one level deeper than the tag, the body is also auto-dedented to match the tag's own column
+     * (see testBodyDedentAutoDetectsTagBodyIndentDifference for dedent-focused coverage in isolation).
      *
      * @dataProvider standaloneControlTagDataProvider
      */
@@ -294,8 +294,8 @@ TEMPLATE,
                 ['items' => ['a', 'b']],
                 <<<'EXPECTED'
 before
-        [a]
-        [b]
+    [a]
+    [b]
 after
 EXPECTED,
             ],
@@ -310,7 +310,7 @@ TEMPLATE,
                 ['flag' => true],
                 <<<'EXPECTED'
 before
-        shown
+    shown
 after
 EXPECTED,
             ],
@@ -338,7 +338,7 @@ TEMPLATE,
                 ['flag' => true],
                 <<<'EXPECTED'
 before
-        true branch
+    true branch
 after
 EXPECTED,
             ],
@@ -355,7 +355,7 @@ TEMPLATE,
                 ['flag' => false],
                 <<<'EXPECTED'
 before
-        false branch
+    false branch
 after
 EXPECTED,
             ],
@@ -430,21 +430,22 @@ EXPECTED;
     }
 
     /**
-     * With an opt-in block indent width, a block tag's body is dedented by exactly that fixed width - not by the
-     * tag's own (variable) measured column - regardless of how deeply the tag itself is nested in the template
-     * source. This makes every {% foreach %}/{% if %} transparent: its body ends up at the same column as its own
-     * tag, whatever that column is, instead of accumulating one extra indent level per level of template nesting.
+     * A block tag's body is dedented by the difference between the body's first line's column and the tag's own
+     * column, detected per tag rather than configured - not by the tag's own (variable) absolute column, and not
+     * by a caller-supplied fixed width - regardless of how deeply the tag itself is nested in the template source.
+     * This makes every {% foreach %}/{% if %} transparent: its body ends up at the same column as its own tag,
+     * whatever that column is, instead of accumulating one extra indent level per level of template nesting.
      *
-     * @dataProvider blockIndentWidthDataProvider
+     * @dataProvider autoDetectedDedentDataProvider
      */
-    public function testBlockIndentWidthMakesBlocksTransparent(string $template, array $variables, string $expected): void
+    public function testBodyDedentAutoDetectsTagBodyIndentDifference(string $template, array $variables, string $expected): void
     {
-        $render = new Render('', new WhitespaceControl(4));
+        $render = new Render('', new WhitespaceControl());
 
         $this->assertSame($expected, $render->renderTemplateString($template, $variables));
     }
 
-    public function blockIndentWidthDataProvider(): array
+    public function autoDetectedDedentDataProvider(): array
     {
         return [
             'if nested two real levels deep keeps its real depth, not its template-literal depth' => [
@@ -515,6 +516,23 @@ class Foo
 {
     public $a;
     public $c;
+}
+EXPECTED,
+            ],
+            'body at the same column as its tag is left alone - the detected difference is 0' => [
+                <<<'TEMPLATE'
+class Foo
+{
+    {% if flag %}
+    statement();
+    {% endif %}
+}
+TEMPLATE,
+                ['flag' => true],
+                <<<'EXPECTED'
+class Foo
+{
+    statement();
 }
 EXPECTED,
             ],
@@ -611,7 +629,7 @@ before
 TEMPLATE;
 
         $this->assertSame(
-            "before\n        shown\n",
+            "before\n    shown\n",
             $this->renderWithWhitespaceControl->renderTemplateString($template, ['flag' => true])
         );
     }
