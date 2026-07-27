@@ -357,8 +357,8 @@ The templating syntax is whitespace tolerant so a template like the one below wo
 
 ### Whitespace control
 
-By default, a `{% foreach %}`/`{% if %}` tag that sits alone on its own line contributes nothing to the rendered
-output, but its own line (leading whitespace and trailing newline) is left behind as-is. For a template like
+By default, a *foreach* or *if* tag alone on its own line still leaves that line behind in the output. A template
+like
 
 ```html
 <ul>
@@ -368,7 +368,7 @@ output, but its own line (leading whitespace and trailing newline) is left behin
 </ul>
 ```
 
-that produces:
+produces:
 
 ```html
 <ul>
@@ -379,10 +379,7 @@ that produces:
 </ul>
 ```
 
-- a whitespace-only line left over from each tag, and the body accumulating one extra indent level per level of
-template nesting instead of staying at the column the surrounding markup would suggest.
-
-Passing a `RenderConfig` with `autoIndent` enabled as the second argument to `Render` opts into cleaning both up:
+Pass a `RenderConfig` with `autoIndent` enabled as the second argument to `Render` to clean this up:
 
 ```php
 <?php
@@ -395,10 +392,9 @@ use PHPMicroTemplate\RenderConfig;
 $render = new Render(__DIR__ . '/Templates/', new RenderConfig(true));
 ```
 
-With `autoIndent` enabled, a standalone tag's own line is stripped entirely, and its body is dedented by however
-far the body's first line is indented past the tag itself - detected automatically per tag, not configured, so it
-adapts to whatever indent width or style (spaces, tabs, two columns, four columns) the template already uses. The
-same template now renders as:
+With `autoIndent` enabled, a standalone tag's own line is removed, and its body is dedented back to the tag's own
+column. The dedent width is detected automatically per tag, so it adapts to whatever indentation the template
+already uses. The same template now renders as:
 
 ```html
 <ul>
@@ -407,12 +403,8 @@ same template now renders as:
 </ul>
 ```
 
-A tag only counts as standalone when nothing but whitespace precedes it back to the previous newline *and*
-nothing but whitespace follows it up to the next newline - a tag that shares its line with real content (eg.
-`<li>{% if visible %}...{% endif %}</li>`) always keeps its surrounding whitespace exactly as written, since
-stripping it there could merge unrelated content together. Likewise, a body that isn't indented deeper than its
-own tag is left untouched - the detected difference is 0, so there is nothing to dedent.
+A tag only counts as standalone when nothing but whitespace surrounds it on its own line. A tag sharing a line
+with real content, or a body already at the same column as its tag, is left untouched.
 
-`autoIndent` defaults to `false` - without passing a `RenderConfig`, or with `new RenderConfig(false)`, every line
-of the template is rendered exactly as written, including the whitespace-only lines left behind by standalone
-tags.
+`autoIndent` defaults to `false`. Without a `RenderConfig`, or with `new RenderConfig(false)`, every line of the
+template is rendered exactly as written.

@@ -28,7 +28,7 @@ class Render
     private $basePath = '';
     /** @var callable */
     private $resolveErrorCallback;
-    /** @var RenderConfig|null */
+    /** @var RenderConfig */
     private $renderConfig;
 
     /**
@@ -42,7 +42,7 @@ class Render
     public function __construct(string $basePath = '', ?RenderConfig $renderConfig = null)
     {
         $this->basePath = $basePath;
-        $this->renderConfig = $renderConfig;
+        $this->renderConfig = $renderConfig ?? new RenderConfig();
     }
 
     /**
@@ -205,7 +205,7 @@ class Render
      */
     private function resolveStandaloneBlock(string $template, int $matchOffset, array $matches): array
     {
-        if ($this->renderConfig === null || !$this->renderConfig->isAutoIndentEnabled()) {
+        if (!$this->renderConfig->isAutoIndentEnabled()) {
             return [false, false, $matches['body']];
         }
 
@@ -360,8 +360,7 @@ class Render
         }
 
         $elseOffset = strpos($body, $elseMatch[0]);
-        $elseStandalone = $this->renderConfig !== null
-            && $this->renderConfig->isAutoIndentEnabled()
+        $elseStandalone = $this->renderConfig->isAutoIndentEnabled()
             && ($elseOffset === 0 || $body[$elseOffset - 1] === "\n")
             && $this->isAtLineEndOrEof($body, $elseOffset, $elseMatch[0], $elseMatch['elseTrail'] ?? '');
 
