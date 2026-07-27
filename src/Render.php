@@ -28,31 +28,22 @@ class Render
     private $basePath = '';
     /** @var callable */
     private $resolveErrorCallback;
-    /** @var int */
-    private $blockIndentWidth = 0;
+    /** @var WhitespaceControl|null */
+    private $whitespaceControl;
 
     /**
      * Render constructor.
      *
-     * @param string $basePath         Provide a base path to the templates. If no base path is provided you must
-     *                                 provide correct absolute/relative paths for the renderTemplate() function
-     *                                 calls
-     * @param int    $blockIndentWidth Opt-in: when > 0, a {% foreach %}/{% if %} tag that sits alone on its own
-     *                                 line has that line's leading whitespace and trailing newline stripped (it
-     *                                 contributes nothing to the output), and up to $blockIndentWidth characters of
-     *                                 leading whitespace are stripped from every line of its body before further
-     *                                 processing. Since template authors conventionally indent a block's body one
-     *                                 level deeper than the block tag itself, this makes the block "transparent" -
-     *                                 its body ends up at the same effective column as the tag, regardless of
-     *                                 nesting depth, instead of accumulating one extra indent level per
-     *                                 {% foreach %}/{% if %} the body happens to be nested inside. Defaults to 0
-     *                                 (disabled) to keep existing template output byte-for-byte unchanged; pass the
-     *                                 indent width your templates use (commonly 4) to opt in.
+     * @param string                  $basePath          Provide a base path to the templates. If no base path is
+     *                                                    provided you must provide correct absolute/relative paths
+     *                                                    for the renderTemplate() function calls
+     * @param WhitespaceControl|null  $whitespaceControl Opt-in standalone-tag trimming and body dedent for
+     *                                                    {% foreach %}/{% if %} blocks. See WhitespaceControl.
      */
-    public function __construct(string $basePath = '', int $blockIndentWidth = 0)
+    public function __construct(string $basePath = '', ?WhitespaceControl $whitespaceControl = null)
     {
         $this->basePath = $basePath;
-        $this->blockIndentWidth = $blockIndentWidth;
+        $this->whitespaceControl = $whitespaceControl;
     }
 
     /**
@@ -167,18 +158,11 @@ class Render
                     return $matches[0];
                 }
 
-                // A tag only counts as "alone on its own line" - and therefore safe to trim and use to dedent its
-                // body - when BOTH sides confirm it: nothing but whitespace precedes it back to the previous
-                // newline, AND nothing but whitespace follows it up to the next newline. Trimming based on only one
-                // side (eg. Jinja's independent lstrip_blocks/trim_blocks) would strip a tag's trailing newline even
-                // when real content precedes it inline on the same line, merging that content into the next line.
-                $openStandalone = $this->isAtLineStart($template, $foreachPos) && ($matches['openTrail'] ?? '') !== '';
-                $closeStandalone = ($matches['body'] === '' || substr($matches['body'], -1) === "\n")
-                    && $this->isAtLineEndOrEof($template, $foreachPos, $matches[0], $matches['closeTrail'] ?? '');
-
-                $body = ($openStandalone && $this->blockIndentWidth > 0)
-                    ? $this->dedentBody($matches['body'], $this->blockIndentWidth)
-                    : $matches['body'];
+                [$openStandalone, $closeStandalone, $body] = $this->resolveStandaloneBlock(
+                    $template,
+                    $foreachPos,
+                    $matches
+                );
 
                 $output = '';
 
@@ -207,11 +191,42 @@ class Render
     }
 
     /**
+     * Determine whether a matched {% foreach %}/{% if %} tag's opening and closing sides are each independently
+     * standalone (alone on their own line), and dedent the tag's body when whitespace control is enabled and the
+     * opening side qualifies. Shared by resolveLoops() and resolveConditionals(), which differ only in which regex
+     * produced $matches and where in $template the match starts.
+     *
+     * A tag only counts as "alone on its own line" - and therefore safe to trim and use to dedent its body - when
+     * BOTH sides confirm it: nothing but whitespace precedes it back to the previous newline, AND nothing but
+     * whitespace follows it up to the next newline. Trimming based on only one side (eg. Jinja's independent
+     * lstrip_blocks/trim_blocks) would strip a tag's trailing newline even when real content precedes it inline on
+     * the same line, merging that content into the next line.
+     *
+     * @return array{0: bool, 1: bool, 2: string} [$openStandalone, $closeStandalone, $body]
+     */
+    private function resolveStandaloneBlock(string $template, int $matchOffset, array $matches): array
+    {
+        if ($this->whitespaceControl === null) {
+            return [false, false, $matches['body']];
+        }
+
+        $openStandalone = $this->isAtLineStart($template, $matchOffset) && ($matches['openTrail'] ?? '') !== '';
+        $closeStandalone = ($matches['body'] === '' || substr($matches['body'], -1) === "\n")
+            && $this->isAtLineEndOrEof($template, $matchOffset, $matches[0], $matches['closeTrail'] ?? '');
+
+        $body = $openStandalone
+            ? $this->dedentBody($matches['body'], $this->whitespaceControl->getBlockIndentWidth())
+            : $matches['body'];
+
+        return [$openStandalone, $closeStandalone, $body];
+    }
+
+    /**
      * A tag is considered to be alone on its own line if the characters immediately preceding it in the original
      * template are either nothing (start of template) or a newline. Only in that case is it safe to treat its
      * leading whitespace as decorative template indentation rather than meaningful inline content.
      */
-    protected function isAtLineStart(string $template, int $offset): bool
+    private function isAtLineStart(string $template, int $offset): bool
     {
         return $offset === 0 || $template[$offset - 1] === "\n";
     }
@@ -221,7 +236,7 @@ class Render
      * sits at the very end of $template with nothing following it at all - end of template is just as much "nothing
      * meaningful follows" as a newline is, it just has no newline character to capture since there is no next line.
      */
-    protected function isAtLineEndOrEof(string $template, int $matchOffset, string $fullMatch, string $trail): bool
+    private function isAtLineEndOrEof(string $template, int $matchOffset, string $fullMatch, string $trail): bool
     {
         if ($trail !== '') {
             return true;
@@ -237,7 +252,7 @@ class Render
      * ambient depth the tag itself sits at. A fixed one-level width makes each block transparent: its body ends up
      * exactly as deep as the tag, whether that tag is nested two levels or ten.
      */
-    protected function dedentBody(string $body, int $width): string
+    private function dedentBody(string $body, int $width): string
     {
         if ($width <= 0) {
             return $body;
@@ -265,13 +280,11 @@ class Render
                     '(?<closeIndent>[ \t]*)\{%\s*endif\k<index>\s*%\}(?<closeTrail>[ \t]*\r?\n)?/sim',
                 function (array $matches) use ($variables, $template): string {
                     $ifPos = strpos($template, $matches[0]);
-                    $openStandalone = $this->isAtLineStart($template, $ifPos) && ($matches['openTrail'] ?? '') !== '';
-                    $closeStandalone = ($matches['body'] === '' || substr($matches['body'], -1) === "\n")
-                        && $this->isAtLineEndOrEof($template, $ifPos, $matches[0], $matches['closeTrail'] ?? '');
-
-                    $body = ($openStandalone && $this->blockIndentWidth > 0)
-                        ? $this->dedentBody($matches['body'], $this->blockIndentWidth)
-                        : $matches['body'];
+                    [$openStandalone, $closeStandalone, $body] = $this->resolveStandaloneBlock(
+                        $template,
+                        $ifPos,
+                        $matches
+                    );
 
                     $conditionalBody = $this->splitOnElseTag($body, $matches['index']);
 
@@ -313,13 +326,14 @@ class Render
 
     /**
      * Split $body on its {% else %} tag (if any) into [trueBranch, falseBranch]. The else tag's own surrounding
-     * whitespace/newline is only stripped when the tag is genuinely alone on its own line (same "both sides must
-     * hold" rule as isAtLineStart-gated tags elsewhere); otherwise only the bare tag text is removed, exactly as if
-     * it had been written inline, so inline conditional expressions keep their surrounding spacing intact.
+     * whitespace/newline is only stripped when whitespace control is enabled AND the tag is genuinely alone on its
+     * own line (same "both sides must hold" rule as resolveStandaloneBlock() applies to the if/foreach tags
+     * themselves); otherwise only the bare tag text is removed, exactly as if it had been written inline, so
+     * inline conditional expressions keep their surrounding spacing intact.
      *
      * @return string[] [trueBranch, falseBranch] - falseBranch is '' when there is no else tag
      */
-    protected function splitOnElseTag(string $body, string $index): array
+    private function splitOnElseTag(string $body, string $index): array
     {
         if (!preg_match(
             "/(?<elseIndent>[ \t]*)\{%\s*else{$index}\s*%\}(?<elseTrail>[ \t]*\r?\n)?/si",
@@ -330,7 +344,8 @@ class Render
         }
 
         $elseOffset = strpos($body, $elseMatch[0]);
-        $elseStandalone = ($elseOffset === 0 || $body[$elseOffset - 1] === "\n")
+        $elseStandalone = $this->whitespaceControl !== null
+            && ($elseOffset === 0 || $body[$elseOffset - 1] === "\n")
             && $this->isAtLineEndOrEof($body, $elseOffset, $elseMatch[0], $elseMatch['elseTrail'] ?? '');
 
         if ($elseStandalone) {

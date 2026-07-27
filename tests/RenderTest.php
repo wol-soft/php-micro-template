@@ -11,6 +11,7 @@ use PHPMicroTemplate\Exception\SyntaxErrorException;
 use PHPMicroTemplate\Exception\UndefinedSymbolException;
 use PHPMicroTemplate\Render;
 use PHPMicroTemplate\Tests\Objects\Product;
+use PHPMicroTemplate\WhitespaceControl;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
@@ -23,10 +24,15 @@ class RenderTest extends TestCase
 {
     /** @var Render */
     private $render;
+    /** @var Render */
+    private $renderWithWhitespaceControl;
 
     public function setUp(): void
     {
         $this->render = new Render(__DIR__ . '/Templates/');
+        // blockIndentWidth 0: trimming enabled, dedent effectively a no-op. Tests that specifically exercise
+        // dedent build their own Render with a non-zero width instead of using this shared instance.
+        $this->renderWithWhitespaceControl = new Render(__DIR__ . '/Templates/', new WhitespaceControl(0));
     }
 
     public function testRenderNotExistingTemplate(): void
@@ -265,14 +271,13 @@ class RenderTest extends TestCase
     /**
      * A {% foreach %}/{% if %}/{% else %}/{% endif %}/{% endforeach %} tag that is the only non-whitespace content
      * on its line contributes nothing to the rendered output - its own leading whitespace and trailing newline are
-     * stripped. This runs unconditionally (independent of the opt-in block indent width dedent feature) on the
-     * default Render instance from setUp().
+     * stripped, when whitespace control is enabled.
      *
      * @dataProvider standaloneControlTagDataProvider
      */
     public function testStandaloneControlTagsAreTrimmed(string $template, array $variables, string $expected): void
     {
-        $this->assertSame($expected, $this->render->renderTemplateString($template, $variables));
+        $this->assertSame($expected, $this->renderWithWhitespaceControl->renderTemplateString($template, $variables));
     }
 
     public function standaloneControlTagDataProvider(): array
@@ -363,12 +368,9 @@ EXPECTED,
      *
      * @dataProvider inlineControlTagDataProvider
      */
-    public function testInlineControlTagsPreserveSurroundingWhitespace(
-        string $template,
-        array $variables,
-        string $expected,
-    ): void {
-        $this->assertSame($expected, $this->render->renderTemplateString($template, $variables));
+    public function testInlineControlTagsPreserveSurroundingWhitespace(string $template, array $variables, string $expected): void
+    {
+        $this->assertSame($expected, $this->renderWithWhitespaceControl->renderTemplateString($template, $variables));
     }
 
     public function inlineControlTagDataProvider(): array
@@ -412,7 +414,7 @@ TEMPLATE;
         // trailing space after "App" is intentional: the one space that separated {{ namespace }} from the inline
         // {% endif %} in the template. Asserted separately via rtrim()+assertSame() on that one line, rather than
         // relying on a trailing space at the end of a heredoc line, which an editor could silently strip unnoticed.
-        $result = $this->render->renderTemplateString($template, ['namespace' => 'App']);
+        $result = $this->renderWithWhitespaceControl->renderTemplateString($template, ['namespace' => 'App']);
         $resultLines = explode("\n", $result);
 
         $expected = <<<'EXPECTED'
@@ -437,7 +439,7 @@ EXPECTED;
      */
     public function testBlockIndentWidthMakesBlocksTransparent(string $template, array $variables, string $expected): void
     {
-        $render = new Render('', 4);
+        $render = new Render('', new WhitespaceControl(4));
 
         $this->assertSame($expected, $render->renderTemplateString($template, $variables));
     }
@@ -520,11 +522,14 @@ EXPECTED,
     }
 
     /**
-     * Without an explicit block indent width the constructor defaults to 0, meaning dedent never applies - only the
-     * unconditional standalone-tag trim runs. This keeps every template's real content byte-for-byte identical to
-     * how it was written, unless a caller explicitly opts in to the width.
+     * Without a WhitespaceControl instance (Render's default, and the instance setUp() builds as $this->render),
+     * neither standalone-tag trimming nor body dedent applies. The lines the {% if %}/{% endif %} tags occupied
+     * are left behind as whitespace-only lines (their own leading indent, now with nothing after it) - the exact
+     * pre-existing behavior this whole feature is opt-in to fix, preserved byte-for-byte for anyone who doesn't
+     * opt in. Built via explode()/implode() rather than a heredoc so the two whitespace-only lines under test
+     * can't be silently stripped by an editor the way trailing heredoc whitespace could be.
      */
-    public function testBlockIndentWidthDefaultsToDisabled(): void
+    public function testNoWhitespaceControlLeavesTemplateUnchanged(): void
     {
         $template = <<<'TEMPLATE'
 class Foo
@@ -538,15 +543,18 @@ class Foo
 }
 TEMPLATE;
 
-        $expected = <<<'EXPECTED'
-class Foo
-{
-    public function bar()
-    {
-            statement();
-    }
-}
-EXPECTED;
+        $eightSpaces = str_repeat(' ', 8);
+        $expected = implode("\n", [
+            'class Foo',
+            '{',
+            '    public function bar()',
+            '    {',
+            $eightSpaces,
+            '            statement();',
+            $eightSpaces,
+            '    }',
+            '}',
+        ]);
 
         $this->assertSame($expected, $this->render->renderTemplateString($template, ['flag' => true]));
     }
@@ -556,7 +564,7 @@ EXPECTED;
      */
     public function testEmptyBlockBodyProducesNoResidualWhitespace(string $template, array $variables, string $expected): void
     {
-        $this->assertSame($expected, $this->render->renderTemplateString($template, $variables));
+        $this->assertSame($expected, $this->renderWithWhitespaceControl->renderTemplateString($template, $variables));
     }
 
     public function emptyBlockBodyDataProvider(): array
@@ -604,7 +612,7 @@ TEMPLATE;
 
         $this->assertSame(
             "before\n        shown\n",
-            $this->render->renderTemplateString($template, ['flag' => true])
+            $this->renderWithWhitespaceControl->renderTemplateString($template, ['flag' => true])
         );
     }
 
