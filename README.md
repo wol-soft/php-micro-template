@@ -14,6 +14,7 @@ A minimalistic, lightweight templating engine for PHP with zero dependencies bas
 - Conditional sections
 - Pass objects
 - call functions
+- opt-in whitespace control for standalone control tags
 
 ## Requirements ##
 
@@ -353,3 +354,57 @@ The templating syntax is whitespace tolerant so a template like the one below wo
     </ul>
 {%endif%}
 ```
+
+### Whitespace control
+
+By default, a *foreach* or *if* tag alone on its own line still leaves that line behind in the output. A template
+like
+
+```html
+<ul>
+    {% foreach items as item %}
+        <li>{{ item }}</li>
+    {% endforeach %}
+</ul>
+```
+
+produces:
+
+```html
+<ul>
+    
+        <li>Hammer</li>
+        <li>Nails</li>
+    
+</ul>
+```
+
+Pass a `RenderConfig` with `autoIndent` enabled as the second argument to `Render` to clean this up:
+
+```php
+<?php
+
+use PHPMicroTemplate\Render;
+use PHPMicroTemplate\RenderConfig;
+
+/* ... */
+
+$render = new Render(__DIR__ . '/Templates/', new RenderConfig(true));
+```
+
+With `autoIndent` enabled, a standalone tag's own line is removed, and its body is dedented back to the tag's own
+column. The dedent width is detected automatically per tag, so it adapts to whatever indentation the template
+already uses. The same template now renders as:
+
+```html
+<ul>
+    <li>Hammer</li>
+    <li>Nails</li>
+</ul>
+```
+
+A tag only counts as standalone when nothing but whitespace surrounds it on its own line. A tag sharing a line
+with real content, or a body already at the same column as its tag, is left untouched.
+
+`autoIndent` defaults to `false`. Without a `RenderConfig`, or with `new RenderConfig(false)`, every line of the
+template is rendered exactly as written.

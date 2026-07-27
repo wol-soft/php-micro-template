@@ -28,16 +28,21 @@ class Render
     private $basePath = '';
     /** @var callable */
     private $resolveErrorCallback;
+    /** @var RenderConfig */
+    private $renderConfig;
 
     /**
      * Render constructor.
      *
-     * @param string $basePath Provide a base path to the templates. If no base path is provided you must provide
-     *                         correct absolute/relative paths for the renderTemplate() function calls
+     * @param string            $basePath     Provide a base path to the templates. If no base path is provided you
+     *                                        must provide correct absolute/relative paths for the renderTemplate()
+     *                                        function calls
+     * @param RenderConfig|null $renderConfig Optional configuration (eg. autoIndent). See RenderConfig.
      */
-    public function __construct(string $basePath = '')
+    public function __construct(string $basePath = '', ?RenderConfig $renderConfig = null)
     {
         $this->basePath = $basePath;
+        $this->renderConfig = $renderConfig ?? new RenderConfig();
     }
 
     /**
@@ -137,9 +142,9 @@ class Render
     protected function resolveLoops(string $template, array $variables): string
     {
         return preg_replace_callback(
-            '/\{%\s*foreach(?<index>-[\d]+-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+((?<key>\w+)\s*,\s*)?(?<value>\w+)\s*%\}' .
-                '(?<body>.+)' .
-            '\{%\s*endforeach\k<index>\s*%\}/si',
+            '/(?<indent>[ \t]*)\{%\s*foreach(?<index>-[\d]+-[\d]+-)\s+' . self::REGEX_VARIABLE . '\s+as\s+((?<key>\w+)\s*,\s*)?(?<value>\w+)\s*%\}(?<openTrail>[ \t]*\r?\n)?' .
+                '(?<body>.*?)' .
+                '(?<closeIndent>[ \t]*)\{%\s*endforeach\k<index>\s*%\}(?<closeTrail>[ \t]*\r?\n)?/si',
             function (array $matches) use ($variables, $template): string {
                 // If this foreach is preceded by an unclosed {% if %} open tag in the template, it is nested inside a
                 // conditional that hasn't been evaluated yet. Return the original match unchanged so that
@@ -152,6 +157,12 @@ class Render
                     return $matches[0];
                 }
 
+                [$openStandalone, $closeStandalone, $body] = $this->resolveStandaloneBlock(
+                    $template,
+                    $foreachPos,
+                    $matches
+                );
+
                 $output = '';
 
                 foreach ($this->getValue($matches, $variables) as $key => $value) {
@@ -163,16 +174,107 @@ class Render
 
                     $output .= $this->replaceVariablesInTemplate(
                         $this->resolveConditionals(
-                            $this->resolveLoops($matches['body'], $scope),
+                            $this->resolveLoops($body, $scope),
                             $scope
                         ),
                         $scope
                     );
                 }
-                return $output;
+
+                return ($openStandalone ? '' : $matches['indent'] . ($matches['openTrail'] ?? ''))
+                    . $output
+                    . ($closeStandalone ? '' : $matches['closeIndent'] . ($matches['closeTrail'] ?? ''));
             },
             $template
         );
+    }
+
+    /**
+     * Determine whether a matched {% foreach %}/{% if %} tag's opening and closing sides are each independently
+     * standalone (alone on their own line), and dedent the tag's body when autoIndent is enabled and the
+     * opening side qualifies. Shared by resolveLoops() and resolveConditionals(), which differ only in which regex
+     * produced $matches and where in $template the match starts.
+     *
+     * A tag only counts as "alone on its own line" - and therefore safe to trim and use to dedent its body - when
+     * BOTH sides confirm it: nothing but whitespace precedes it back to the previous newline, AND nothing but
+     * whitespace follows it up to the next newline. Trimming based on only one side (eg. Jinja's independent
+     * lstrip_blocks/trim_blocks) would strip a tag's trailing newline even when real content precedes it inline on
+     * the same line, merging that content into the next line.
+     *
+     * @return array{0: bool, 1: bool, 2: string} [$openStandalone, $closeStandalone, $body]
+     */
+    private function resolveStandaloneBlock(string $template, int $matchOffset, array $matches): array
+    {
+        if (!$this->renderConfig->isAutoIndentEnabled()) {
+            return [false, false, $matches['body']];
+        }
+
+        $openStandalone = $this->isAtLineStart($template, $matchOffset) && ($matches['openTrail'] ?? '') !== '';
+        $closeStandalone = ($matches['body'] === '' || substr($matches['body'], -1) === "\n")
+            && $this->isAtLineEndOrEof($template, $matchOffset, $matches[0], $matches['closeTrail'] ?? '');
+
+        $body = $openStandalone
+            ? $this->dedentBody($matches['body'], $this->detectDedentWidth($matches['indent'], $matches['body']))
+            : $matches['body'];
+
+        return [$openStandalone, $closeStandalone, $body];
+    }
+
+    /**
+     * Determine how far a standalone tag's body is indented relative to the tag itself, by comparing the tag's
+     * own leading whitespace against the leading whitespace of the body's first line - not a fixed, configured
+     * width. Template authors conventionally indent a block's body one level deeper than the block tag itself;
+     * measuring that difference per tag, instead of requiring a matching width to be configured up front, makes
+     * the feature adapt automatically to whatever indent width or style (spaces, tabs, two columns, four columns)
+     * the template already uses, and degrades to a no-op (0) for a body that isn't indented deeper than its tag
+     * at all, rather than requiring a caller to opt out explicitly.
+     */
+    private function detectDedentWidth(string $tagIndent, string $body): int
+    {
+        preg_match('/^[ \t]*/', $body, $bodyIndentMatch);
+
+        return max(0, strlen($bodyIndentMatch[0]) - strlen($tagIndent));
+    }
+
+    /**
+     * A tag is considered to be alone on its own line if the characters immediately preceding it in the original
+     * template are either nothing (start of template) or a newline. Only in that case is it safe to treat its
+     * leading whitespace as decorative template indentation rather than meaningful inline content.
+     */
+    private function isAtLineStart(string $template, int $offset): bool
+    {
+        return $offset === 0 || $template[$offset - 1] === "\n";
+    }
+
+    /**
+     * A tag's trailing side is safe to trim either when an actual trailing newline was captured, or when the tag
+     * sits at the very end of $template with nothing following it at all - end of template is just as much "nothing
+     * meaningful follows" as a newline is, it just has no newline character to capture since there is no next line.
+     */
+    private function isAtLineEndOrEof(string $template, int $matchOffset, string $fullMatch, string $trail): bool
+    {
+        if ($trail !== '') {
+            return true;
+        }
+
+        return $matchOffset + strlen($fullMatch) === strlen($template);
+    }
+
+    /**
+     * Strip up to $width characters of leading whitespace from every line of $body. $width is the difference
+     * between the tag's own column and its body's first line's column (see detectDedentWidth()), never the tag's
+     * raw absolute column itself - stripping the tag's own column would collapse body content to a constant
+     * absolute depth regardless of nesting, instead of preserving it relative to whatever ambient depth the tag
+     * itself sits at. A one-level difference makes each block transparent: its body ends up exactly as deep as
+     * the tag, whether that tag is nested two levels or ten.
+     */
+    private function dedentBody(string $body, int $width): string
+    {
+        if ($width <= 0) {
+            return $body;
+        }
+
+        return preg_replace('/^[ \t]{1,' . $width . '}/m', '', $body);
     }
 
     /**
@@ -189,11 +291,18 @@ class Render
     {
         do {
             $template = preg_replace_callback(
-                '/\{%\s*if(?<index>-[\d]+-[\d]+-)\s+(?<condition>.+?)\s*%\}' .
-                    '(?<body>.+)' .
-                '\{%\s*endif\k<index>\s*%\}/si',
-                function (array $matches) use ($variables): string {
-                    $conditionalBody = preg_split("/{%\s*else{$matches['index']}\s*%\}/si", $matches['body']);
+                '/(?<indent>[ \t]*)\{%\s*if(?<index>-[\d]+-[\d]+-)\s+(?<condition>.+?)\s*%\}(?<openTrail>[ \t]*\r?\n)?' .
+                    '(?<body>.*?)' .
+                    '(?<closeIndent>[ \t]*)\{%\s*endif\k<index>\s*%\}(?<closeTrail>[ \t]*\r?\n)?/sim',
+                function (array $matches) use ($variables, $template): string {
+                    $ifPos = strpos($template, $matches[0]);
+                    [$openStandalone, $closeStandalone, $body] = $this->resolveStandaloneBlock(
+                        $template,
+                        $ifPos,
+                        $matches
+                    );
+
+                    $conditionalBody = $this->splitOnElseTag($body, $matches['index']);
 
                     $orBranches = [];
                     foreach (explode(' or ', $matches['condition']) as $orLinkedCondition) {
@@ -218,7 +327,9 @@ class Render
 
                     $branch = in_array(true, $orBranches) ? $conditionalBody[0] : ($conditionalBody[1] ?? '');
 
-                    return $this->resolveLoops($branch, $variables);
+                    return ($openStandalone ? '' : $matches['indent'] . ($matches['openTrail'] ?? ''))
+                        . $this->resolveLoops($branch, $variables)
+                        . ($closeStandalone ? '' : $matches['closeIndent'] . ($matches['closeTrail'] ?? ''));
                 },
                 $template,
                 -1,
@@ -227,6 +338,50 @@ class Render
         } while ($count > 0);
 
         return $template;
+    }
+
+    /**
+     * Split $body on its {% else %} tag (if any) into [trueBranch, falseBranch]. The else tag's own surrounding
+     * whitespace/newline is only stripped when autoIndent is enabled AND the tag is genuinely alone on its
+     * own line (same "both sides must hold" rule as resolveStandaloneBlock() applies to the if/foreach tags
+     * themselves); otherwise only the bare tag text is removed, exactly as if it had been written inline, so
+     * inline conditional expressions keep their surrounding spacing intact.
+     *
+     * @return string[] [trueBranch, falseBranch] - falseBranch is '' when there is no else tag
+     */
+    private function splitOnElseTag(string $body, string $index): array
+    {
+        if (!preg_match(
+            "/(?<elseIndent>[ \t]*)\{%\s*else{$index}\s*%\}(?<elseTrail>[ \t]*\r?\n)?/si",
+            $body,
+            $elseMatch
+        )) {
+            return [$body, ''];
+        }
+
+        $elseOffset = strpos($body, $elseMatch[0]);
+        $elseStandalone = $this->renderConfig->isAutoIndentEnabled()
+            && ($elseOffset === 0 || $body[$elseOffset - 1] === "\n")
+            && $this->isAtLineEndOrEof($body, $elseOffset, $elseMatch[0], $elseMatch['elseTrail'] ?? '');
+
+        if ($elseStandalone) {
+            return [
+                substr($body, 0, $elseOffset),
+                substr($body, $elseOffset + strlen($elseMatch[0])),
+            ];
+        }
+
+        $bareTag = substr(
+            $elseMatch[0],
+            strlen($elseMatch['elseIndent']),
+            strlen($elseMatch[0]) - strlen($elseMatch['elseIndent']) - strlen(($elseMatch['elseTrail'] ?? ''))
+        );
+        $tagOffset = strpos($body, $bareTag, $elseOffset);
+
+        return [
+            substr($body, 0, $tagOffset),
+            substr($body, $tagOffset + strlen($bareTag)),
+        ];
     }
 
     /**
