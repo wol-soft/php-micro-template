@@ -382,23 +382,23 @@ that produces:
 - a whitespace-only line left over from each tag, and the body accumulating one extra indent level per level of
 template nesting instead of staying at the column the surrounding markup would suggest.
 
-Passing a `WhitespaceControl` instance as the second argument to `Render` opts into cleaning both up:
+Passing a `RenderConfig` with `autoIndent` enabled as the second argument to `Render` opts into cleaning both up:
 
 ```php
 <?php
 
 use PHPMicroTemplate\Render;
-use PHPMicroTemplate\WhitespaceControl;
+use PHPMicroTemplate\RenderConfig;
 
 /* ... */
 
-$render = new Render(__DIR__ . '/Templates/', new WhitespaceControl());
+$render = new Render(__DIR__ . '/Templates/', new RenderConfig(true));
 ```
 
-With whitespace control enabled, a standalone tag's own line is stripped entirely, and its body is dedented by
-however far the body's first line is indented past the tag itself - detected automatically per tag, not
-configured, so it adapts to whatever indent width or style (spaces, tabs, two columns, four columns) the template
-already uses. The same template now renders as:
+With `autoIndent` enabled, a standalone tag's own line is stripped entirely, and its body is dedented by however
+far the body's first line is indented past the tag itself - detected automatically per tag, not configured, so it
+adapts to whatever indent width or style (spaces, tabs, two columns, four columns) the template already uses. The
+same template now renders as:
 
 ```html
 <ul>
@@ -413,5 +413,6 @@ nothing but whitespace follows it up to the next newline - a tag that shares its
 stripping it there could merge unrelated content together. Likewise, a body that isn't indented deeper than its
 own tag is left untouched - the detected difference is 0, so there is nothing to dedent.
 
-Without a `WhitespaceControl` instance (the default, `new Render($basePath)`), templates render exactly as before
-this feature existed.
+`autoIndent` defaults to `false` - without passing a `RenderConfig`, or with `new RenderConfig(false)`, every line
+of the template is rendered exactly as written, including the whitespace-only lines left behind by standalone
+tags.

@@ -28,22 +28,21 @@ class Render
     private $basePath = '';
     /** @var callable */
     private $resolveErrorCallback;
-    /** @var WhitespaceControl|null */
-    private $whitespaceControl;
+    /** @var RenderConfig|null */
+    private $renderConfig;
 
     /**
      * Render constructor.
      *
-     * @param string                  $basePath          Provide a base path to the templates. If no base path is
-     *                                                    provided you must provide correct absolute/relative paths
-     *                                                    for the renderTemplate() function calls
-     * @param WhitespaceControl|null  $whitespaceControl Opt-in standalone-tag trimming and body dedent for
-     *                                                    {% foreach %}/{% if %} blocks. See WhitespaceControl.
+     * @param string            $basePath     Provide a base path to the templates. If no base path is provided you
+     *                                        must provide correct absolute/relative paths for the renderTemplate()
+     *                                        function calls
+     * @param RenderConfig|null $renderConfig Optional configuration (eg. autoIndent). See RenderConfig.
      */
-    public function __construct(string $basePath = '', ?WhitespaceControl $whitespaceControl = null)
+    public function __construct(string $basePath = '', ?RenderConfig $renderConfig = null)
     {
         $this->basePath = $basePath;
-        $this->whitespaceControl = $whitespaceControl;
+        $this->renderConfig = $renderConfig;
     }
 
     /**
@@ -192,7 +191,7 @@ class Render
 
     /**
      * Determine whether a matched {% foreach %}/{% if %} tag's opening and closing sides are each independently
-     * standalone (alone on their own line), and dedent the tag's body when whitespace control is enabled and the
+     * standalone (alone on their own line), and dedent the tag's body when autoIndent is enabled and the
      * opening side qualifies. Shared by resolveLoops() and resolveConditionals(), which differ only in which regex
      * produced $matches and where in $template the match starts.
      *
@@ -206,7 +205,7 @@ class Render
      */
     private function resolveStandaloneBlock(string $template, int $matchOffset, array $matches): array
     {
-        if ($this->whitespaceControl === null) {
+        if ($this->renderConfig === null || !$this->renderConfig->isAutoIndentEnabled()) {
             return [false, false, $matches['body']];
         }
 
@@ -343,7 +342,7 @@ class Render
 
     /**
      * Split $body on its {% else %} tag (if any) into [trueBranch, falseBranch]. The else tag's own surrounding
-     * whitespace/newline is only stripped when whitespace control is enabled AND the tag is genuinely alone on its
+     * whitespace/newline is only stripped when autoIndent is enabled AND the tag is genuinely alone on its
      * own line (same "both sides must hold" rule as resolveStandaloneBlock() applies to the if/foreach tags
      * themselves); otherwise only the bare tag text is removed, exactly as if it had been written inline, so
      * inline conditional expressions keep their surrounding spacing intact.
@@ -361,7 +360,8 @@ class Render
         }
 
         $elseOffset = strpos($body, $elseMatch[0]);
-        $elseStandalone = $this->whitespaceControl !== null
+        $elseStandalone = $this->renderConfig !== null
+            && $this->renderConfig->isAutoIndentEnabled()
             && ($elseOffset === 0 || $body[$elseOffset - 1] === "\n")
             && $this->isAtLineEndOrEof($body, $elseOffset, $elseMatch[0], $elseMatch['elseTrail'] ?? '');
 
@@ -375,7 +375,7 @@ class Render
         $bareTag = substr(
             $elseMatch[0],
             strlen($elseMatch['elseIndent']),
-            strlen($elseMatch[0]) - strlen($elseMatch['elseIndent']) - strlen(($elseMatch['elseTrail'] ?? '')),
+            strlen($elseMatch[0]) - strlen($elseMatch['elseIndent']) - strlen(($elseMatch['elseTrail'] ?? ''))
         );
         $tagOffset = strpos($body, $bareTag, $elseOffset);
 

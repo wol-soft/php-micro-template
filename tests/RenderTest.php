@@ -10,8 +10,8 @@ use PHPMicroTemplate\Exception\FileSystemException;
 use PHPMicroTemplate\Exception\SyntaxErrorException;
 use PHPMicroTemplate\Exception\UndefinedSymbolException;
 use PHPMicroTemplate\Render;
+use PHPMicroTemplate\RenderConfig;
 use PHPMicroTemplate\Tests\Objects\Product;
-use PHPMicroTemplate\WhitespaceControl;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
@@ -25,12 +25,12 @@ class RenderTest extends TestCase
     /** @var Render */
     private $render;
     /** @var Render */
-    private $renderWithWhitespaceControl;
+    private $renderWithAutoIndent;
 
     public function setUp(): void
     {
         $this->render = new Render(__DIR__ . '/Templates/');
-        $this->renderWithWhitespaceControl = new Render(__DIR__ . '/Templates/', new WhitespaceControl());
+        $this->renderWithAutoIndent = new Render(__DIR__ . '/Templates/', new RenderConfig(true));
     }
 
     public function testRenderNotExistingTemplate(): void
@@ -277,7 +277,7 @@ class RenderTest extends TestCase
      */
     public function testStandaloneControlTagsAreTrimmed(string $template, array $variables, string $expected): void
     {
-        $this->assertSame($expected, $this->renderWithWhitespaceControl->renderTemplateString($template, $variables));
+        $this->assertSame($expected, $this->renderWithAutoIndent->renderTemplateString($template, $variables));
     }
 
     public function standaloneControlTagDataProvider(): array
@@ -370,7 +370,7 @@ EXPECTED,
      */
     public function testInlineControlTagsPreserveSurroundingWhitespace(string $template, array $variables, string $expected): void
     {
-        $this->assertSame($expected, $this->renderWithWhitespaceControl->renderTemplateString($template, $variables));
+        $this->assertSame($expected, $this->renderWithAutoIndent->renderTemplateString($template, $variables));
     }
 
     public function inlineControlTagDataProvider(): array
@@ -414,7 +414,7 @@ TEMPLATE;
         // trailing space after "App" is intentional: the one space that separated {{ namespace }} from the inline
         // {% endif %} in the template. Asserted separately via rtrim()+assertSame() on that one line, rather than
         // relying on a trailing space at the end of a heredoc line, which an editor could silently strip unnoticed.
-        $result = $this->renderWithWhitespaceControl->renderTemplateString($template, ['namespace' => 'App']);
+        $result = $this->renderWithAutoIndent->renderTemplateString($template, ['namespace' => 'App']);
         $resultLines = explode("\n", $result);
 
         $expected = <<<'EXPECTED'
@@ -440,7 +440,7 @@ EXPECTED;
      */
     public function testBodyDedentAutoDetectsTagBodyIndentDifference(string $template, array $variables, string $expected): void
     {
-        $render = new Render('', new WhitespaceControl());
+        $render = new Render('', new RenderConfig(true));
 
         $this->assertSame($expected, $render->renderTemplateString($template, $variables));
     }
@@ -540,14 +540,14 @@ EXPECTED,
     }
 
     /**
-     * Without a WhitespaceControl instance (Render's default, and the instance setUp() builds as $this->render),
-     * neither standalone-tag trimming nor body dedent applies. The lines the {% if %}/{% endif %} tags occupied
-     * are left behind as whitespace-only lines (their own leading indent, now with nothing after it) - the exact
-     * pre-existing behavior this whole feature is opt-in to fix, preserved byte-for-byte for anyone who doesn't
-     * opt in. Built via explode()/implode() rather than a heredoc so the two whitespace-only lines under test
-     * can't be silently stripped by an editor the way trailing heredoc whitespace could be.
+     * Without a RenderConfig with autoIndent enabled (Render's default, and the instance setUp() builds as
+     * $this->render), neither standalone-tag trimming nor body dedent applies. The lines the {% if %}/{% endif %}
+     * tags occupied are left behind as whitespace-only lines (their own leading indent, now with nothing after it)
+     * - the exact pre-existing behavior this whole feature is opt-in to fix, preserved byte-for-byte for anyone who
+     * doesn't opt in. Built via explode()/implode() rather than a heredoc so the two whitespace-only lines under
+     * test can't be silently stripped by an editor the way trailing heredoc whitespace could be.
      */
-    public function testNoWhitespaceControlLeavesTemplateUnchanged(): void
+    public function testAutoIndentDisabledLeavesTemplateUnchanged(): void
     {
         $template = <<<'TEMPLATE'
 class Foo
@@ -582,7 +582,7 @@ TEMPLATE;
      */
     public function testEmptyBlockBodyProducesNoResidualWhitespace(string $template, array $variables, string $expected): void
     {
-        $this->assertSame($expected, $this->renderWithWhitespaceControl->renderTemplateString($template, $variables));
+        $this->assertSame($expected, $this->renderWithAutoIndent->renderTemplateString($template, $variables));
     }
 
     public function emptyBlockBodyDataProvider(): array
@@ -630,7 +630,7 @@ TEMPLATE;
 
         $this->assertSame(
             "before\n    shown\n",
-            $this->renderWithWhitespaceControl->renderTemplateString($template, ['flag' => true])
+            $this->renderWithAutoIndent->renderTemplateString($template, ['flag' => true])
         );
     }
 
