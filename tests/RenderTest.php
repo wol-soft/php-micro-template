@@ -242,6 +242,124 @@ class RenderTest extends TestCase
     }
 
     /**
+     * A `{# ... #}` comment - possibly spanning multiple lines itself - that is the only non-whitespace content on
+     * its line contributes nothing to the rendered output when autoIndent is enabled, exactly like a standalone
+     * {% if %}/{% foreach %} tag: its own leading whitespace and trailing newline are stripped too, so it doesn't
+     * leave a blank line behind.
+     *
+     * @dataProvider standaloneCommentDataProvider
+     */
+    public function testStandaloneCommentTagsAreTrimmed(string $template, string $expected): void
+    {
+        $this->assertSame($expected, $this->renderWithAutoIndent->renderTemplateString($template));
+    }
+
+    public function standaloneCommentDataProvider(): array
+    {
+        // See standaloneControlTagDataProvider() for why each heredoc is assigned to a variable (terminated by
+        // ";") rather than written inline as an array element (which would require a "," terminator) - PHP 7.1/7.2
+        // only recognize a heredoc closing marker when nothing but a semicolon follows it on that line.
+        $singleLineTemplate = <<<'TEMPLATE'
+before
+{# a standalone comment #}
+after
+TEMPLATE;
+
+        $multiLineTemplate = <<<'TEMPLATE'
+before
+{# a
+multi
+line
+comment #}
+after
+TEMPLATE;
+
+        $indentedTemplate = <<<'TEMPLATE'
+before
+    {# indented comment #}
+after
+TEMPLATE;
+
+        // The expected value for this case has a trailing space after "leading" (the space between "leading" and
+        // the comment tag is preserved since the tag isn't standalone) - built via implode() rather than a heredoc
+        // so that trailing space can't be silently stripped by an editor the way trailing heredoc whitespace could
+        // be (see testAutoIndentDisabledLeavesTemplateUnchanged()).
+        $precededByContentTemplate = <<<'TEMPLATE'
+before
+leading {# comment #}
+after
+TEMPLATE;
+        $precededByContentExpected = implode("\n", ['before', 'leading ', 'after']);
+
+        $followedByContentTemplate = <<<'TEMPLATE'
+before
+{# comment #} trailing
+after
+TEMPLATE;
+        $followedByContentExpected = <<<'EXPECTED'
+before
+ trailing
+after
+EXPECTED;
+
+        return [
+            'standalone single-line comment leaves no blank line' => [
+                $singleLineTemplate,
+                "before\nafter",
+            ],
+            'standalone multi-line comment leaves no blank line' => [
+                $multiLineTemplate,
+                "before\nafter",
+            ],
+            'standalone indented comment leaves no blank line' => [
+                $indentedTemplate,
+                "before\nafter",
+            ],
+            'non-standalone comment preceded by real content on the same line' => [
+                $precededByContentTemplate,
+                $precededByContentExpected,
+            ],
+            'non-standalone comment followed by real content on the same line' => [
+                $followedByContentTemplate,
+                $followedByContentExpected,
+            ],
+        ];
+    }
+
+    /**
+     * Without autoIndent enabled, a standalone comment behaves exactly like the pre-existing plain `{# ... #}`
+     * stripping: only the tag itself is removed, leaving its own line as a blank line behind - the same opt-in
+     * behavior testAutoIndentDisabledLeavesTemplateUnchanged() documents for control structure tags.
+     */
+    public function testAutoIndentDisabledLeavesStandaloneCommentBlankLine(): void
+    {
+        $template = <<<'TEMPLATE'
+before
+{# a standalone comment #}
+after
+TEMPLATE;
+
+        $this->assertSame("before\n\nafter", $this->render->renderTemplateString($template));
+    }
+
+    /**
+     * A standalone comment positioned at the very end of the template, with no trailing newline or content after
+     * it, must be treated the same as a standalone control structure tag in the same position (see
+     * testStandaloneTagAtEndOfTemplateWithNoTrailingNewline()): end of template counts as much as "nothing
+     * meaningful follows the tag" as an actual trailing newline does.
+     */
+    public function testStandaloneCommentAtEndOfTemplateWithNoTrailingNewline(): void
+    {
+        // deliberately no trailing newline after the comment tag - that's the case under test
+        $template = <<<'TEMPLATE'
+before
+{# comment #}
+TEMPLATE;
+
+        $this->assertSame("before\n", $this->renderWithAutoIndent->renderTemplateString($template));
+    }
+
+    /**
      * Test if the syntax of a template is whitespace tolerant
      */
     public function testWhitespaceTolerance(): void

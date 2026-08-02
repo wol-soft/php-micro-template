@@ -99,11 +99,29 @@ class Render
     }
 
     /**
-     * Strip `{# ... #}` comment blocks
+     * Strip `{# ... #}` comment blocks. When autoIndent is enabled and a comment tag - possibly spanning
+     * multiple lines itself - is standalone (alone on its own line, same "both sides must hold" rule as
+     * resolveStandaloneBlock() applies to control structure tags), its surrounding indent and trailing
+     * newline are removed too, so it doesn't leave a blank line behind like {% if %}/{% foreach %} already
+     * don't.
      */
     protected function stripComments(string $template): string
     {
-        return preg_replace('/\{#.*?#\}/s', '', $template);
+        return preg_replace_callback(
+            '/(?<indent>[ \t]*)\{#.*?#\}(?<trail>[ \t]*\r?\n)?/s',
+            function (array $matches) use ($template): string {
+                if (!$this->renderConfig->isAutoIndentEnabled()) {
+                    return $matches['indent'] . ($matches['trail'] ?? '');
+                }
+
+                $offset = strpos($template, $matches[0]);
+                $standalone = $this->isAtLineStart($template, $offset)
+                    && $this->isAtLineEndOrEof($template, $offset, $matches[0], $matches['trail'] ?? '');
+
+                return $standalone ? '' : $matches['indent'] . ($matches['trail'] ?? '');
+            },
+            $template
+        );
     }
 
     /**
